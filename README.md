@@ -38,17 +38,29 @@ client.post("/api/body-metrics", { recorded_at: Time.now, sleep_hours: 7.5 })
 
 ### Inbound auth (Rails)
 
+Two flavors:
+
 ```ruby
+# Strict — always require X-App-Auth. Use on routes that are ONLY called
+# by sibling apps (no browser caller).
 require "personal_app_client/rails/inter_app_auth"
 
-class Api::FitnessSyncController < ApplicationController
+class Api::SyncController < ApplicationController
   include PersonalAppClient::Rails::InterAppAuth
-  # ...
+end
+
+# Optional — header absent → pass (browser path); header present → must
+# match. Use on routes called by both browsers and sibling apps.
+require "personal_app_client/rails/inter_app_auth_optional"
+
+class Api::BaseController < ApplicationController
+  include PersonalAppClient::Rails::InterAppAuthOptional
 end
 ```
 
-The concern reads `ENV["INTER_APP_SECRET"]`, returns 503 if unset, and 401
-if the request's `X-App-Auth` header doesn't match.
+Strict reads `ENV["INTER_APP_SECRET"]`, 503 if unset, 401 on mismatch.
+Optional 503s only when the header *is* present but the server has no
+secret to compare against.
 
 ## Errors
 
