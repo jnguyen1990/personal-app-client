@@ -155,9 +155,9 @@ module PersonalAppClient
 
     def parse_body(response)
       return nil if response.body.nil? || response.body.empty?
-      content_type = response["content-type"].to_s
-      return response.body unless content_type.include?("json")
       JSON.parse(response.body)
+    rescue JSON::ParserError
+      response.body
     end
 
     def truncate(str, max = 200)

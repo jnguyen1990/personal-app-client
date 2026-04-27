@@ -65,13 +65,21 @@ RSpec.describe PersonalAppClient::Client do
       expect(result["query"]).to include("limit=10")
     end
 
-    it "returns string body when content-type isn't JSON" do
+    it "returns raw body when response isn't valid JSON" do
       server.on(:get, "/plain") do |_req, res|
         res["Content-Type"] = "text/plain"
         res.body = "ok"
       end
       client = described_class.new(base_url: server.url)
       expect(client.get("/plain")).to eq("ok")
+    end
+
+    it "parses JSON body even when Content-Type is absent" do
+      server.on(:get, "/typeless") do |_req, res|
+        res.body = "[1,2,3]"
+      end
+      client = described_class.new(base_url: server.url)
+      expect(client.get("/typeless")).to eq([1, 2, 3])
     end
   end
 
