@@ -24,4 +24,9 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rspec", "~> 3.13"
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "webrick", "~> 1.8"
+  # For SqliteBackup specs (the concern itself only requires these lazily,
+  # inside the including app's process).
+  spec.add_development_dependency "activerecord", ">= 7.0"
+  spec.add_development_dependency "sqlite3", ">= 1.6"
+  spec.add_development_dependency "rubyzip", ">= 2.3"
 end
