@@ -9,10 +9,11 @@ module PersonalAppClient
     # Shared SQLite backup/restore actions for the personal apps'
     # Api::BackupsController. Provides:
     #
-    #   create_backup   — WAL checkpoint (optional) → ZIP (db + extra files +
-    #                     ActiveStorage files where configured)
+    #   create_backup   — prune → WAL checkpoint (optional) → ZIP (db + extra
+    #                     files + ActiveStorage files where configured) → prune
     #   download        — validated filename → send_file from tmp/
     #   list            — JSON listing of tmp/<prefix>_backup_*.zip
+    #   prune           — delete all but the newest `keep` ZIPs
     #   restore         — restore a named backup from tmp/
     #   restore_upload  — restore from an uploaded ZIP
     #
@@ -30,6 +31,9 @@ module PersonalAppClient
     #
     # Options:
     #   prefix               backup filename prefix ("<prefix>_backup_<ts>.zip")
+    #   keep                 ZIPs retained in tmp/ (default 3); these are only
+    #                        staging copies — mini's backup-pull.sh pulls each
+    #                        one, verifies integrity_check, and keeps 14 locally
     #   db_entry_name        ZIP entry name for the db (default "<prefix>.db")
     #   extra_files          repo-relative files added to (and restored from) the ZIP
     #   include_storage      include/restore ActiveStorage files under storage/
@@ -53,12 +57,13 @@ module PersonalAppClient
       class_methods do
         attr_accessor :sqlite_backup_options
 
-        def sqlite_backup_config(prefix:, db_entry_name: nil, extra_files: [],
+        def sqlite_backup_config(prefix:, keep: 3, db_entry_name: nil, extra_files: [],
                                  include_storage: false, wal_checkpoint: false,
                                  list_include_size: true, source_db_path: nil,
                                  tables_delete_order: [])
           self.sqlite_backup_options = {
             prefix: prefix,
+            keep: keep,
             db_entry_name: db_entry_name || "#{prefix}.db",
             extra_files: extra_files,
             include_storage: include_storage,
@@ -77,15 +82,49 @@ module PersonalAppClient
 
         require "zip"
 
+        # Prune BEFORE the checkpoint, not after. Nothing used to delete these
+        # ZIPs, so tmp/ grew by one a night until the volume filled and
+        # wal_checkpoint(TRUNCATE) started raising SQLITE_FULL — which aborts
+        # create_backup before it writes anything, so a prune placed after the
+        # write could never run and the job could not recover on its own.
+        # Pruning first means a full disk heals itself on the next nightly run.
+        pruned = prune_backup_files!
+
         # Checkpoint WAL so the DB file has all data
         checkpoint_wal! if backup_option(:wal_checkpoint)
 
         write_backup_zip(backup_path, db_path: backup_source_db_path)
 
+        # Again after the write: the pre-prune left `keep` files, so this drops
+        # the oldest to make room for the one just created, landing at exactly
+        # `keep`.
+        pruned += prune_backup_files!
+
         render json: {
           success: true,
           filename: filename,
+          pruned: pruned,
           download_url: "/api/backup/download/#{filename}"
+        }
+      rescue => e
+        render json: { error: e.message }, status: 500
+      end
+
+      # Standalone prune, so a volume that is ALREADY full can be cleared
+      # without going through create_backup (which needs free space to get as
+      # far as writing a ZIP). Accepts ?keep= to override the configured value.
+      def prune
+        keep = params[:keep].present? ? params[:keep].to_i : backup_keep
+        return render(json: { error: "keep must be >= 1" }, status: 400) if keep < 1
+
+        before = backup_files
+        pruned = prune_backup_files!(keep: keep)
+
+        render json: {
+          success: true,
+          pruned: pruned,
+          kept: before.size - pruned.size,
+          bytes_freed: pruned.sum { |p| p[:size] }
         }
       rescue => e
         render json: { error: e.message }, status: 500
@@ -331,8 +370,45 @@ module PersonalAppClient
         backup_option(:prefix)
       end
 
+      # Never 0 or negative: `keep` reaches Array#drop, where 0 would prune
+      # every backup the app has. A controller whose sqlite_backup_config
+      # predates the :keep option reads nil here, hence the floor.
+      def backup_keep
+        keep = backup_option(:keep).to_i
+        keep < 1 ? 3 : keep
+      end
+
       def backup_filename_regexp
         /\A#{Regexp.escape(backup_prefix)}_backup_\d{8}_\d{6}\.zip\z/
+      end
+
+      # This app's backup ZIPs in tmp/, newest first. Sorted by the filename's
+      # embedded timestamp rather than mtime (as `list` uses): the %Y%m%d_%H%M%S
+      # format sorts lexicographically, and unlike mtime it survives a copy or
+      # a restore that rewrites the file. The regexp filter keeps the glob from
+      # matching anything else that happens to live in tmp/.
+      def backup_files
+        Dir.glob(::Rails.root.join("tmp", "#{backup_prefix}_backup_*.zip"))
+           .select { |path| File.basename(path).match?(backup_filename_regexp) }
+           .sort_by { |path| File.basename(path) }
+           .reverse
+      end
+
+      # Delete all but the newest `keep` ZIPs. Returns [{filename:, size:}, …]
+      # for what it removed. A file that will not unlink is skipped rather than
+      # raised on — losing a prune is recoverable, losing the backup it is
+      # clearing space for is not.
+      def prune_backup_files!(keep: backup_keep)
+        backup_files.drop(keep).filter_map do |path|
+          size = File.size(path)
+          begin
+            File.unlink(path)
+            { filename: File.basename(path), size: size }
+          rescue SystemCallError => e
+            ::Rails.logger.warn("[sqlite_backup] could not prune #{path}: #{e.message}")
+            nil
+          end
+        end
       end
 
       def tables_delete_order

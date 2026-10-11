@@ -1,14 +1,20 @@
 require "ostruct"
+require "logger"
 require "tmpdir"
 require "pathname"
 require "active_record"
 require "zip"
 require "personal_app_client/rails/sqlite_backup"
 
-# Minimal Rails stand-in — the backup concern only touches ::Rails.root.
+# Minimal Rails stand-in — the backup concern touches ::Rails.root and, on the
+# prune path, ::Rails.logger.
 module Rails
   def self.root
     @root ||= Pathname.new(Dir.mktmpdir("pac_sqlite_backup"))
+  end
+
+  def self.logger
+    @logger ||= Logger.new(File::NULL)
   end
 end
 
@@ -107,11 +113,120 @@ RSpec.describe PersonalAppClient::Rails::SqliteBackup do
       end
     end
 
+    it "prunes to `keep` after writing the new backup" do
+      (1..6).each do |i|
+        File.write(tmp_dir.join(format("testapp_backup_202401%02d_000000.zip", i)), "x")
+      end
+
+      controller.create_backup
+      json = controller.rendered[:json]
+
+      remaining = Dir.glob(tmp_dir.join("testapp_backup_*.zip")).map { |p| File.basename(p) }
+      expect(remaining.length).to eq(3)
+      expect(remaining).to include(json[:filename])
+      expect(json[:pruned].length).to eq(4)
+    end
+
+    # Regression: tmp/ grew unbounded until the volume filled, at which point
+    # wal_checkpoint(TRUNCATE) raised SQLITE_FULL and aborted create_backup
+    # before it wrote anything — so a prune placed after the write would never
+    # run, and every subsequent night failed the same way. Pruning first is
+    # what lets the job recover without someone clearing the disk by hand.
+    it "prunes before the WAL checkpoint so a full volume recovers on its own" do
+      (1..12).each do |i|
+        File.write(tmp_dir.join(format("testapp_backup_202401%02d_000000.zip", i)), "x" * 1000)
+      end
+
+      allow(controller).to receive(:checkpoint_wal!) do
+        if Dir.glob(tmp_dir.join("testapp_backup_*.zip")).length > 3
+          raise ActiveRecord::StatementInvalid, "SQLite3::FullException: database or disk is full"
+        end
+      end
+
+      controller.create_backup
+
+      expect(controller.rendered[:json][:success]).to be(true)
+      expect(Dir.glob(tmp_dir.join("testapp_backup_*.zip")).length).to eq(3)
+    end
+
     it "renders a 500 JSON error when zipping fails" do
       allow(controller).to receive(:write_backup_zip).and_raise("disk full")
       controller.create_backup
       expect(controller.rendered[:status]).to eq(500)
       expect(controller.rendered[:json]).to eq(error: "disk full")
+    end
+  end
+
+  describe "#prune" do
+    # Oldest-first on purpose: prune must pick by the filename timestamp, not
+    # by the order the glob happens to return.
+    def seed_backups(count, prefix: "testapp")
+      (1..count).map do |i|
+        name = format("%s_backup_202401%02d_000000.zip", prefix, i)
+        File.write(tmp_dir.join(name), "x" * (100 * i))
+        name
+      end
+    end
+
+    it "keeps the newest `keep` backups and deletes the rest" do
+      seed_backups(6)
+
+      controller.prune
+      json = controller.rendered[:json]
+
+      expect(json[:success]).to be(true)
+      expect(json[:kept]).to eq(3)
+      expect(json[:pruned].map { |p| p[:filename] }).to eq(
+        %w[
+          testapp_backup_20240103_000000.zip
+          testapp_backup_20240102_000000.zip
+          testapp_backup_20240101_000000.zip
+        ]
+      )
+      expect(json[:bytes_freed]).to eq(300 + 200 + 100)
+      expect(Dir.glob(tmp_dir.join("testapp_backup_*.zip")).length).to eq(3)
+    end
+
+    it "honours an explicit keep param" do
+      seed_backups(6)
+      controller.params = { keep: "1" }
+
+      controller.prune
+
+      expect(controller.rendered[:json][:kept]).to eq(1)
+      expect(Dir.glob(tmp_dir.join("testapp_backup_*.zip")).length).to eq(1)
+    end
+
+    it "rejects keep below 1 rather than deleting every backup" do
+      seed_backups(3)
+      controller.params = { keep: "0" }
+
+      controller.prune
+
+      expect(controller.rendered[:status]).to eq(400)
+      expect(Dir.glob(tmp_dir.join("testapp_backup_*.zip")).length).to eq(3)
+    end
+
+    it "falls back to a safe floor when the controller config predates :keep" do
+      seed_backups(5)
+      allow(controller).to receive(:backup_option).and_call_original
+      allow(controller).to receive(:backup_option).with(:keep).and_return(nil)
+
+      controller.prune
+
+      expect(Dir.glob(tmp_dir.join("testapp_backup_*.zip")).length).to eq(3)
+    end
+
+    it "leaves another app's backups and unrelated tmp files alone" do
+      seed_backups(5)
+      seed_backups(5, prefix: "miniapp")
+      File.write(tmp_dir.join("testapp_backup_notatimestamp.zip"), "keep me")
+
+      controller.prune
+
+      expect(Dir.glob(tmp_dir.join("testapp_backup_2*.zip")).length).to eq(3)
+      expect(Dir.glob(tmp_dir.join("miniapp_backup_*.zip")).length).to eq(5)
+      expect(File.exist?(tmp_dir.join("testapp_backup_notatimestamp.zip"))).to be(true)
     end
   end
 
