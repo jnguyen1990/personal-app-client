@@ -153,4 +153,43 @@ RSpec.describe PersonalAppClient::Client do
       expect { client.get("/anything") }.to raise_error(PersonalAppClient::ConnectionError)
     end
   end
+
+  describe "PATCH" do
+    it "sends a JSON body with the PATCH verb" do
+      server.on(:patch, "/api/things/1") do |req, res|
+        res["Content-Type"] = "application/json"
+        res.body = JSON.dump(method: req.request_method, body: JSON.parse(req.body),
+                             content_type: req.header["content-type"]&.first)
+      end
+      client = described_class.new(base_url: server.url)
+      expect(client.patch("/api/things/1", { name: "new" })).to eq(
+        "method" => "PATCH", "body" => { "name" => "new" }, "content_type" => "application/json"
+      )
+    end
+
+    it "raises ResponseError on non-2xx" do
+      server.on(:patch, "/api/things/1") { |_req, res| res.status = 422 }
+      client = described_class.new(base_url: server.url)
+      expect { client.patch("/api/things/1", {}) }
+        .to raise_error(PersonalAppClient::ResponseError) { |e| expect(e.status).to eq(422) }
+    end
+  end
+
+  describe "#last_status" do
+    it "is nil before any request" do
+      expect(described_class.new(base_url: server.url).last_status).to be_nil
+    end
+
+    it "records the status of the latest response, success or failure" do
+      server.on(:get, "/made") { |_req, res| res.status = 201 }
+      server.on(:get, "/broken") { |_req, res| res.status = 503 }
+      client = described_class.new(base_url: server.url)
+
+      client.get("/made")
+      expect(client.last_status).to eq(201)
+
+      expect { client.get("/broken") }.to raise_error(PersonalAppClient::ResponseError)
+      expect(client.last_status).to eq(503)
+    end
+  end
 end

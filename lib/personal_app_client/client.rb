@@ -15,6 +15,10 @@ module PersonalAppClient
 
     attr_reader :base_url
 
+    # HTTP status of the most recent response (Integer), or nil before the
+    # first request and after one that never got a response.
+    attr_reader :last_status
+
     def initialize(base_url:, secret: nil, env: nil,
                    guarded_domains: DEFAULT_GUARDED_DOMAINS,
                    open_timeout: 5, read_timeout: 10,
@@ -39,6 +43,10 @@ module PersonalAppClient
 
     def put(path, body = nil)
       request(:put, path, body: body)
+    end
+
+    def patch(path, body = nil)
+      request(:patch, path, body: body)
     end
 
     def delete(path)
@@ -73,6 +81,7 @@ module PersonalAppClient
     end
 
     def request(method, path, query: nil, body: nil)
+      @last_status = nil
       uri = build_uri(path, query)
       req = build_request(method, uri, body)
       response = perform(uri, req)
@@ -93,6 +102,7 @@ module PersonalAppClient
         get: Net::HTTP::Get,
         post: Net::HTTP::Post,
         put: Net::HTTP::Put,
+        patch: Net::HTTP::Patch,
         delete: Net::HTTP::Delete
       }.fetch(method)
 
@@ -100,7 +110,7 @@ module PersonalAppClient
       req["Content-Type"] = "application/json"
       req["Accept"] = "application/json"
       req["X-App-Auth"] = @secret if @secret && !@secret.empty?
-      req.body = body.to_json if body && %i[post put].include?(method)
+      req.body = body.to_json if body && %i[post put patch].include?(method)
       req
     end
 
@@ -126,6 +136,7 @@ module PersonalAppClient
 
     def handle(response, uri)
       code = response.code.to_i
+      @last_status = code
       case code
       when 200..299
         parse_body(response)
