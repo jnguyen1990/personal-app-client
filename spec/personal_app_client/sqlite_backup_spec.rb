@@ -19,11 +19,25 @@ module Rails
 end
 
 class FakeBackupsController
+  # The concern includes OperatorAuth, which registers a before_action.
+  def self.before_actions
+    @before_actions ||= []
+  end
+
+  def self.before_action(method_name, **_options)
+    before_actions << method_name
+  end
+
   attr_accessor :params
+  attr_writer :request
   attr_reader :rendered, :sent_file
 
   def initialize
     @params = {}
+  end
+
+  def request
+    @request ||= OpenStruct.new(headers: {}, cookies: {})
   end
 
   def render(payload)
@@ -383,6 +397,171 @@ RSpec.describe PersonalAppClient::Rails::SqliteBackup do
 
       expect(aborter.rendered[:status]).to eq(422)
       expect(aborter.rendered[:json]).to eq(error: "Invalid database: missing expected tables")
+    end
+  end
+
+  describe "restoring every table" do
+    def zip_db(db_file, name)
+      Zip::File.open(tmp_dir.join(name).to_s, create: true) { |z| z.add("testapp.db", db_file) }
+      name
+    end
+
+    def create_named_backup(name)
+      controller.create_backup
+      FileUtils.mv(tmp_dir.join(controller.rendered[:json][:filename]), tmp_dir.join(name))
+      FakeBackupsController.new
+    end
+
+    after do
+      %w[extras parent_tags uuid_things skipped].each { |t| conn.execute("DROP TABLE IF EXISTS #{t}") }
+    end
+
+    # Regression: restore only copied tables named in tables_delete_order, so
+    # a table added to the schema but not to that list came back empty (or
+    # kept whatever the live db held) without any error.
+    it "restores a table that is missing from tables_delete_order" do
+      conn.execute("CREATE TABLE extras (id INTEGER PRIMARY KEY AUTOINCREMENT, note TEXT)")
+      conn.execute("INSERT INTO extras (id, note) VALUES (4, 'kept')")
+      backup_name = "testapp_backup_20200101_000000.zip"
+      restorer = create_named_backup(backup_name)
+
+      conn.execute("DELETE FROM extras")
+      conn.execute("INSERT INTO extras (id, note) VALUES (11, 'stray')")
+
+      restorer.params = { filename: backup_name }
+      restorer.restore
+
+      expect(restorer.rendered[:json][:success]).to be(true)
+      rows = conn.execute("SELECT id, note FROM extras").map { |r| [ r["id"], r["note"] ] }
+      expect(rows).to eq([ [ 4, "kept" ] ])
+      expect(conn.select_value("SELECT seq FROM sqlite_sequence WHERE name = 'extras'")).to eq(4)
+    end
+
+    it "restores tables with no id column or a non-integer id without touching sequences" do
+      conn.execute("CREATE TABLE parent_tags (parent_id INTEGER, tag TEXT)")
+      conn.execute("CREATE TABLE uuid_things (id TEXT PRIMARY KEY, label TEXT)")
+      conn.execute("INSERT INTO parent_tags VALUES (1, 'red'), (2, 'blue')")
+      conn.execute("INSERT INTO uuid_things VALUES ('b3c1', 'one')")
+      backup_name = "testapp_backup_20200101_000000.zip"
+      restorer = create_named_backup(backup_name)
+
+      conn.execute("DELETE FROM parent_tags")
+      conn.execute("DELETE FROM uuid_things")
+
+      restorer.params = { filename: backup_name }
+      restorer.restore
+
+      expect(restorer.rendered[:json][:success]).to be(true)
+      expect(conn.select_value("SELECT COUNT(*) FROM parent_tags")).to eq(2)
+      expect(conn.select_value("SELECT label FROM uuid_things WHERE id = 'b3c1'")).to eq("one")
+      expect(conn.select_value("SELECT COUNT(*) FROM sqlite_sequence WHERE name IN ('parent_tags', 'uuid_things')")).to eq(0)
+    end
+
+    it "leaves exclude_tables alone" do
+      conn.execute("CREATE TABLE skipped (id INTEGER PRIMARY KEY AUTOINCREMENT, note TEXT)")
+      conn.execute("INSERT INTO skipped (note) VALUES ('in backup')")
+      backup_name = "testapp_backup_20200101_000000.zip"
+      create_named_backup(backup_name)
+      conn.execute("UPDATE skipped SET note = 'live'")
+
+      klass = Class.new(FakeBackupsController)
+      klass.sqlite_backup_config prefix: "testapp", exclude_tables: %w[skipped]
+      restorer = klass.new
+      restorer.params = { filename: backup_name }
+      restorer.restore
+
+      expect(restorer.rendered[:json][:success]).to be(true)
+      expect(conn.select_value("SELECT note FROM skipped")).to eq("live")
+    end
+
+    it "needs no tables_delete_order at all, even with foreign keys between tables" do
+      backup_name = "testapp_backup_20200101_000000.zip"
+      create_named_backup(backup_name)
+      conn.execute("DELETE FROM children")
+      conn.execute("DELETE FROM parents")
+
+      klass = Class.new(FakeBackupsController)
+      klass.sqlite_backup_config prefix: "testapp"
+      restorer = klass.new
+      restorer.params = { filename: backup_name }
+      restorer.restore
+
+      expect(restorer.rendered[:json][:success]).to be(true)
+      expect(conn.select_value("SELECT COUNT(*) FROM parents")).to eq(2)
+      expect(conn.select_value("SELECT COUNT(*) FROM children")).to eq(2)
+      expect(conn.select_value("PRAGMA foreign_keys")).to eq(1)
+    end
+
+    it "does not touch a live table the backup does not have" do
+      backup_name = "testapp_backup_20200101_000000.zip"
+      create_named_backup(backup_name)
+      conn.execute("CREATE TABLE extras (id INTEGER PRIMARY KEY AUTOINCREMENT, note TEXT)")
+      conn.execute("INSERT INTO extras (note) VALUES ('newer than the backup')")
+
+      restorer = FakeBackupsController.new
+      restorer.params = { filename: backup_name }
+      restorer.restore
+
+      expect(restorer.rendered[:json][:success]).to be(true)
+      expect(conn.select_value("SELECT COUNT(*) FROM extras")).to eq(1)
+    end
+
+    it "restores into a database that has no sqlite_sequence table" do
+      plain_db = root.join("db", "plain.sqlite3").to_s
+      FileUtils.rm_f(plain_db)
+      ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: plain_db)
+      conn.execute("CREATE TABLE things (id INTEGER PRIMARY KEY, name TEXT)")
+      conn.execute("INSERT INTO things VALUES (1, 'live')")
+
+      source_db = tmp_dir.join("plain_source.sqlite3").to_s
+      source = SQLite3::Database.new(source_db)
+      source.execute("CREATE TABLE things (id INTEGER PRIMARY KEY, name TEXT)")
+      source.execute("INSERT INTO things VALUES (8, 'from backup')")
+      source.close
+      backup_name = zip_db(source_db, "testapp_backup_20200101_000000.zip")
+
+      restorer = FakeBackupsController.new
+      restorer.params = { filename: backup_name }
+      restorer.restore
+
+      expect(restorer.rendered[:json][:success]).to be(true)
+      expect(conn.execute("SELECT id, name FROM things").map { |r| [ r["id"], r["name"] ] })
+        .to eq([ [ 8, "from backup" ] ])
+    ensure
+      ActiveRecord::Base.connection_pool.disconnect!
+      FileUtils.rm_f(plain_db)
+    end
+  end
+
+  describe "defaults" do
+    it "checkpoints the WAL unless told otherwise" do
+      klass = Class.new(FakeBackupsController)
+      klass.sqlite_backup_config prefix: "testapp"
+      expect(klass.sqlite_backup_options[:wal_checkpoint]).to be(true)
+
+      c = klass.new
+      expect(c).to receive(:checkpoint_wal!).and_call_original
+      c.create_backup
+      expect(c.rendered[:json][:success]).to be(true)
+    end
+  end
+
+  describe "operator auth" do
+    it "guards every action with OperatorAuth" do
+      expect(FakeBackupsController.ancestors).to include(PersonalAppClient::Rails::OperatorAuth)
+      expect(FakeBackupsController.before_actions).to include(:authenticate_operator!)
+    end
+
+    it "is not enforced outside production" do
+      controller.send(:authenticate_operator!)
+      expect(controller.rendered).to be_nil
+    end
+
+    it "rejects an unauthenticated request in production" do
+      with_rails_env("production") do
+        controller.send(:authenticate_operator!)
+        expect(controller.rendered).to eq(json: { error: "unauthorized" }, status: :unauthorized)
+      end
     end
   end
 

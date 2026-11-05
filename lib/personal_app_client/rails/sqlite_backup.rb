@@ -3,6 +3,7 @@ require "active_support/core_ext/object/blank"
 require "securerandom"
 require "fileutils"
 require "pathname"
+require_relative "operator_auth"
 
 module PersonalAppClient
   module Rails
@@ -25,9 +26,12 @@ module PersonalAppClient
     #       sqlite_backup_config prefix: "fitness",
     #                            extra_files: %w[CLAUDE_CONTEXT.md README.md],
     #                            include_storage: true,
-    #                            wal_checkpoint: true,
-    #                            tables_delete_order: TABLES_DELETE_ORDER
+    #                            exclude_tables: %w[sync_logs]
     #     end
+    #
+    # Every action is operator-only: the concern includes OperatorAuth, so in
+    # production a request needs X-App-Auth (the mini's backup pull) or a
+    # valid Cloudflare Access JWT (the settings page). See OperatorAuth.
     #
     # Options:
     #   prefix               backup filename prefix ("<prefix>_backup_<ts>.zip")
@@ -38,10 +42,16 @@ module PersonalAppClient
     #   extra_files          repo-relative files added to (and restored from) the ZIP
     #   include_storage      include/restore ActiveStorage files under storage/
     #   wal_checkpoint       run PRAGMA wal_checkpoint(TRUNCATE) before zipping
+    #                        (default true — without it a WAL-mode db file can
+    #                        be missing its most recent writes)
     #   list_include_size    include the raw `size` key in `list` JSON
     #   source_db_path       db path used for create_backup (String/Pathname/Proc);
     #                        defaults to the ActiveRecord connection's db path
-    #   tables_delete_order  child-first table list for the generic restore
+    #   exclude_tables       tables the generic restore leaves untouched
+    #   tables_delete_order  optional child-first ordering hint for the generic
+    #                        restore: listed tables are deleted first, in this
+    #                        order (and re-inserted last, reversed); tables not
+    #                        listed are still restored
     #
     # The restore pipeline (safety backup → validate ZIP → extract db via
     # File.binwrite — NOT rubyzip Entry#extract, which prepends Dir.pwd even to
@@ -49,18 +59,23 @@ module PersonalAppClient
     # zip_path)`, which apps may override for bespoke row/column mapping. The
     # generic implementation ATTACHes the backup db, toggles
     # PRAGMA foreign_keys OUTSIDE any transaction (a no-op inside one — SQLite
-    # gotcha), deletes child-first, re-inserts parent-first mapping shared
-    # columns (tolerates schema drift), and resets sqlite_sequence.
+    # gotcha), then replaces the contents of EVERY table present in both the
+    # backup and the live database (minus Rails' bookkeeping tables and
+    # `exclude_tables`), mapping shared columns (tolerates schema drift), and
+    # resets sqlite_sequence. It used to copy only the tables named in
+    # `tables_delete_order`, so a table added to the schema but not to that
+    # list was silently left out of every restore.
     module SqliteBackup
       extend ActiveSupport::Concern
+      include OperatorAuth
 
       class_methods do
         attr_accessor :sqlite_backup_options
 
         def sqlite_backup_config(prefix:, keep: 3, db_entry_name: nil, extra_files: [],
-                                 include_storage: false, wal_checkpoint: false,
+                                 include_storage: false, wal_checkpoint: true,
                                  list_include_size: true, source_db_path: nil,
-                                 tables_delete_order: [])
+                                 tables_delete_order: [], exclude_tables: [])
           self.sqlite_backup_options = {
             prefix: prefix,
             keep: keep,
@@ -70,7 +85,8 @@ module PersonalAppClient
             wal_checkpoint: wal_checkpoint,
             list_include_size: list_include_size,
             source_db_path: source_db_path,
-            tables_delete_order: tables_delete_order
+            tables_delete_order: Array(tables_delete_order).map(&:to_s),
+            exclude_tables: Array(exclude_tables).map(&:to_s)
           }.freeze
         end
       end
@@ -238,56 +254,42 @@ module PersonalAppClient
       # mapping override this method (render inside it to abort — the shared
       # success response is skipped when a response was already rendered).
       #
-      # Table names are interpolated from the configured tables_delete_order
-      # constant — never from user input.
+      # Table and column names come from the two databases' own sqlite_master
+      # / table_info — never from user input — and are quoted regardless.
       def restore_database(temp_db_path, zip_path)
         conn = ActiveRecord::Base.connection
         conn.execute("ATTACH DATABASE #{conn.quote(temp_db_path)} AS bk")
 
         begin
-          backup_tables = conn.execute(
-            "SELECT name FROM bk.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'ar_internal_%' AND name != 'schema_migrations'"
-          ).map { |r| r["name"] }
+          # Child-first for the delete, parent-first for the insert.
+          delete_order = restore_delete_order(restorable_tables(conn, "bk") & restorable_tables(conn, "main"))
+          insert_order = delete_order.reverse
 
           # SQLite requires PRAGMA foreign_keys to be toggled OUTSIDE any transaction —
-          # it's a no-op if executed while a BEGIN is pending.
+          # it's a no-op if executed while a BEGIN is pending. With it off, the
+          # order below cannot fail a constraint, so tables missing from
+          # tables_delete_order are safe to copy in any position.
           conn.execute("PRAGMA foreign_keys = OFF")
           begin
             conn.transaction do
-              # Delete all data in child-first order
-              tables_delete_order.each do |table|
-                conn.execute("DELETE FROM #{table}") if backup_tables.include?(table)
+              delete_order.each do |table|
+                conn.execute("DELETE FROM #{conn.quote_table_name(table)}")
               end
 
-              # Insert from backup in parent-first order
-              tables_insert_order.each do |table|
-                next unless backup_tables.include?(table)
-
-                # Get column list from backup table
-                columns = conn.execute("PRAGMA bk.table_info(#{table})").map { |c| c["name"] }
-                # Get columns that exist in both source and destination
-                dest_columns = conn.execute("PRAGMA table_info(#{table})").map { |c| c["name"] }
+              insert_order.each do |table|
+                quoted = conn.quote_table_name(table)
+                # Columns that exist in both source and destination
+                columns = conn.execute("PRAGMA bk.table_info(#{quoted})").map { |c| c["name"] }
+                dest_columns = conn.execute("PRAGMA main.table_info(#{quoted})").map { |c| c["name"] }
                 shared_columns = columns & dest_columns
 
                 next if shared_columns.empty?
 
-                cols = shared_columns.join(", ")
-                conn.execute("INSERT INTO #{table} (#{cols}) SELECT #{cols} FROM bk.#{table}")
+                cols = shared_columns.map { |c| conn.quote_column_name(c) }.join(", ")
+                conn.execute("INSERT INTO #{quoted} (#{cols}) SELECT #{cols} FROM bk.#{quoted}")
               end
 
-              # Reset auto-increment sequences
-              tables_insert_order.each do |table|
-                next unless backup_tables.include?(table)
-                max_id = conn.select_value("SELECT MAX(id) FROM #{table}")
-                if max_id
-                  existing = conn.select_value("SELECT COUNT(*) FROM sqlite_sequence WHERE name = '#{table}'")
-                  if existing && existing > 0
-                    conn.execute("UPDATE sqlite_sequence SET seq = #{max_id} WHERE name = '#{table}'")
-                  else
-                    conn.execute("INSERT INTO sqlite_sequence (name, seq) VALUES ('#{table}', #{max_id})")
-                  end
-                end
-              end
+              insert_order.each { |table| reset_sequence(conn, table) }
             end
           ensure
             conn.execute("PRAGMA foreign_keys = ON")
@@ -297,6 +299,54 @@ module PersonalAppClient
         end
 
         restore_storage_files(zip_path) if backup_option(:include_storage)
+      end
+
+      # User tables in one attached schema ("main" or "bk"): everything except
+      # SQLite's own tables, Rails' bookkeeping, virtual tables (their content
+      # lives in ordinary shadow tables, which ARE copied) and exclude_tables.
+      def restorable_tables(conn, schema)
+        conn.execute(
+          "SELECT name FROM #{schema}.sqlite_master WHERE type='table' " \
+          "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'ar_internal_%' " \
+          "AND name != 'schema_migrations' " \
+          "AND (sql IS NULL OR sql NOT LIKE 'CREATE VIRTUAL TABLE%')"
+        ).map { |r| r["name"] } - Array(backup_option(:exclude_tables))
+      end
+
+      # Configured tables first, in their configured (child-first) order;
+      # every other table follows.
+      def restore_delete_order(tables)
+        listed = tables_delete_order & tables
+        listed + (tables - listed).sort
+      end
+
+      # Point the table's AUTOINCREMENT counter at its highest restored id.
+      # Skipped where that is meaningless: no sqlite_sequence table at all (no
+      # AUTOINCREMENT table in the schema), no `id` column (join tables), or
+      # an id that is not an integer (uuid / string keys).
+      def reset_sequence(conn, table)
+        return unless sqlite_sequence?(conn)
+
+        quoted = conn.quote_table_name(table)
+        id_column = conn.execute("PRAGMA main.table_info(#{quoted})").find { |c| c["name"] == "id" }
+        return unless id_column && id_column["type"].to_s.match?(/int/i)
+
+        max_id = conn.select_value("SELECT MAX(id) FROM #{quoted}")
+        return unless max_id.is_a?(Integer)
+
+        name = conn.quote(table)
+        existing = conn.select_value("SELECT COUNT(*) FROM sqlite_sequence WHERE name = #{name}")
+        if existing && existing > 0
+          conn.execute("UPDATE sqlite_sequence SET seq = #{max_id} WHERE name = #{name}")
+        else
+          conn.execute("INSERT INTO sqlite_sequence (name, seq) VALUES (#{name}, #{max_id})")
+        end
+      end
+
+      def sqlite_sequence?(conn)
+        conn.select_value(
+          "SELECT COUNT(*) FROM main.sqlite_master WHERE type='table' AND name='sqlite_sequence'"
+        ).to_i > 0
       end
 
       # Restore ActiveStorage blob files.
@@ -412,7 +462,7 @@ module PersonalAppClient
       end
 
       def tables_delete_order
-        backup_option(:tables_delete_order)
+        Array(backup_option(:tables_delete_order))
       end
 
       # Tables in parent-first order for insertion (reverse of delete)
