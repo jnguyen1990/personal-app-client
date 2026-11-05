@@ -67,3 +67,10 @@ class StubServer
     raise "stub server didn't start"
   end
 end
+
+# WEBrick's proc handler only answers GET/POST/PUT (and DELETE on newer
+# versions) out of the box.
+WEBrick::HTTPServlet::ProcHandler.class_eval do
+  alias_method :do_PATCH, :do_GET unless method_defined?(:do_PATCH)
+  alias_method :do_DELETE, :do_GET unless method_defined?(:do_DELETE)
+end

@@ -1,7 +1,11 @@
 require "personal_app_client"
 require_relative "support/stub_server"
+require_relative "support/fake_rails"
+require_relative "support/fake_controller"
 
 RSpec.configure do |config|
+  config.include FakeRailsEnv
+
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
   end
