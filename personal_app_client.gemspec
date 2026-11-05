@@ -20,6 +20,9 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "activesupport", ">= 7.0"
   spec.add_dependency "jwt", ">= 2.7", "< 4"
+  # Manitoba went to permanent UTC-5 on 2026-10-31; 1.2026.6 (tzdata 2026f)
+  # is the first release that knows. The hosts' OS zoneinfo does not.
+  spec.add_dependency "tzinfo-data", ">= 1.2026.6"
 
   spec.add_development_dependency "rspec", "~> 3.13"
   spec.add_development_dependency "rake", "~> 13.0"
