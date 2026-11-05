@@ -97,4 +97,44 @@ RSpec.describe PersonalAppClient::Mcp::BaseTool do
       expect(described_class.clamp_int(9999, default: 10, max: 200)).to eq(200)
     end
   end
+
+  describe "strict dates" do
+    it "rejects what Date.parse used to guess at" do
+      [ "05", "abc-05", "next tuesday", "July 6 2026", "2026-7-6", "2026-07-06T10:00:00Z" ].each do |value|
+        expect { described_class.parse_date(value) }
+          .to raise_error(ArgumentError, "Invalid date: #{value.inspect} (expected YYYY-MM-DD)")
+      end
+    end
+
+    it "rejects a well-shaped date that does not exist" do
+      expect { described_class.parse_date("2026-02-30") }
+        .to raise_error(ArgumentError, 'Invalid date: "2026-02-30" (expected YYYY-MM-DD)')
+    end
+
+    it "still accepts a Date object" do
+      expect(described_class.parse_date(Date.new(2026, 7, 6))).to eq(Date.new(2026, 7, 6))
+    end
+  end
+
+  describe ".parse_date_arg!" do
+    it "returns nil when the argument is absent or blank" do
+      expect(described_class.parse_date_arg!({}, "closes_at")).to be_nil
+      expect(described_class.parse_date_arg!({ "closes_at" => "" }, "closes_at")).to be_nil
+    end
+
+    it "parses YYYY-MM-DD" do
+      expect(described_class.parse_date_arg!({ "closes_at" => "2026-07-06" }, "closes_at"))
+        .to eq(Date.new(2026, 7, 6))
+    end
+
+    it "names the key when the shape is wrong" do
+      expect { described_class.parse_date_arg!({ "closes_at" => "05" }, "closes_at") }
+        .to raise_error(ArgumentError, 'closes_at must be YYYY-MM-DD, got "05"')
+    end
+
+    it "names the key when the date does not exist" do
+      expect { described_class.parse_date_arg!({ "closes_at" => "2026-02-30" }, "closes_at") }
+        .to raise_error(ArgumentError, 'closes_at is not a real date: "2026-02-30"')
+    end
+  end
 end

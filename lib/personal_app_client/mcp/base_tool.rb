@@ -1,5 +1,6 @@
 require "date"
 require "active_support/core_ext/object/blank"
+require_relative "../dates"
 
 module PersonalAppClient
   module Mcp
@@ -32,11 +33,29 @@ module PersonalAppClient
         end
 
         # Helpers shared by tools.
+        #
+        # Dates are strict: exactly YYYY-MM-DD and a real calendar day. This
+        # used to be Date.parse, which reads "05" as the 5th of the current
+        # month and "next tuesday" as a real date — a tool would then act on
+        # a day nobody asked for instead of telling Claude the argument was
+        # malformed.
         def parse_date(value, default: nil)
           return default if value.blank?
-          Date.parse(value.to_s)
-        rescue ArgumentError, TypeError
-          raise ArgumentError, "Invalid date: #{value.inspect} (expected YYYY-MM-DD)"
+          PersonalAppClient::Dates.parse_date(value) ||
+            raise(ArgumentError, "Invalid date: #{value.inspect} (expected YYYY-MM-DD)")
+        end
+
+        # Same check for a named argument, with the key in the message:
+        # nil when args[key] is blank, a Date when valid, ArgumentError
+        # otherwise.
+        def parse_date_arg!(args, key)
+          value = args[key]
+          return nil if value.blank?
+          unless value.to_s.match?(PersonalAppClient::Dates::DATE_FORMAT)
+            raise ArgumentError, "#{key} must be YYYY-MM-DD, got #{value.inspect}"
+          end
+          PersonalAppClient::Dates.parse_date(value) ||
+            raise(ArgumentError, "#{key} is not a real date: #{value.inspect}")
         end
 
         def parse_time(value)
