@@ -32,4 +32,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "activerecord", ">= 7.0"
   spec.add_development_dependency "sqlite3", ">= 1.6"
   spec.add_development_dependency "rubyzip", ">= 2.3"
+  # For JobStatusReporting specs.
+  spec.add_development_dependency "activejob", ">= 7.0"
 end
