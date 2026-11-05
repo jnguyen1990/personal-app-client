@@ -8,14 +8,16 @@ Gem::Specification.new do |spec|
 
   spec.summary     = "Shared HTTP client for Joe's personal apps."
   spec.description = "Inter-app HTTP client with loud failures, public-domain guard, " \
-                     "and shared-secret auth. Used by base, fitness, and budgeter."
+                     "and shared-secret auth, plus the Rails concerns the apps share " \
+                     "(auth, MCP dispatch, SQLite backup/restore, health, rate limiting). " \
+                     "Used by base, budgeter, fitness, mealplanner, postings, and upkeep."
   spec.homepage    = "https://github.com/jnguyen1990/personal-app-client"
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["source_code_uri"] = spec.homepage
 
-  spec.files = Dir["lib/**/*", "README.md", "LICENSE.txt"]
+  spec.files = Dir["lib/**/*", "README.md", "CHANGELOG.md", "LICENSE.txt"]
   spec.require_paths = ["lib"]
 
   spec.add_dependency "activesupport", ">= 7.0"
