@@ -181,4 +181,25 @@ RSpec.describe PersonalAppClient::Rails::OauthResourceServer do
       expect(c.rendered).to eq(unauth)
     end
   end
+
+  describe "signing keys" do
+    it "come from the shared JwksCache, keyed by the configured JWKS URL" do
+      c = FakeOauthController.new
+      expect(PersonalAppClient::JwksCache).to receive(:fetch)
+        .with("https://base.example.test/oauth/discovery/keys").and_return(jwks)
+      expect(c.send(:jwks_keys)).to equal(jwks)
+    end
+
+    it "verifies a token against keys fetched over the (stubbed) network" do
+      PersonalAppClient::JwksCache.clear
+      allow(PersonalAppClient::JwksCache).to receive(:http_get_json)
+        .and_return(JSON.parse(JSON.dump(keys: [ jwk.export ])))
+      c = FakeOauthController.new
+      c.request = OpenStruct.new(headers: { "Authorization" => "Bearer #{build_token}" })
+      c.send(:authenticate_mcp!)
+      expect(c.current_mcp_subject).to eq("joe@rotessa.com")
+    ensure
+      PersonalAppClient::JwksCache.clear
+    end
+  end
 end

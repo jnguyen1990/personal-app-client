@@ -1,10 +1,8 @@
 require "active_support/concern"
 require "active_support/security_utils"
 require "active_support/core_ext/object/blank"
-require "json"
-require "net/http"
-require "uri"
 require "jwt"
+require_relative "../jwks_cache"
 
 module PersonalAppClient
   module Rails
@@ -33,7 +31,7 @@ module PersonalAppClient
     module OauthResourceServer
       extend ActiveSupport::Concern
 
-      JWKS_TTL = 300 # seconds; signing keys are cached this long
+      JWKS_TTL = PersonalAppClient::JwksCache::TTL # seconds; signing keys are cached this long
 
       class_methods do
         attr_accessor :oauth_rs_issuer_env, :oauth_rs_jwks_env,
@@ -112,40 +110,11 @@ module PersonalAppClient
         auds.include?(resource)
       end
 
-      # Fetch + cache the AS signing keys. Returns a JWT::JWK::Set or nil.
+      # The AS signing keys — a JWT::JWK::Set, or nil. Fetching, the 5-minute
+      # cache and stale-key reuse on a network blip live in JwksCache, which
+      # CloudflareAccess shares.
       def jwks_keys
-        url = ENV[self.class.oauth_rs_jwks_env].presence
-        return nil if url.blank?
-
-        cached = self.class.instance_variable_get(:@oauth_rs_jwks_cache)
-        if cached && cached[:url] == url && (monotonic - cached[:at]) < JWKS_TTL
-          return cached[:set]
-        end
-
-        body = http_get_json(url)
-        return cached&.dig(:set) if body.nil? # network blip → reuse stale keys
-        set = JWT::JWK::Set.new(body)
-        self.class.instance_variable_set(:@oauth_rs_jwks_cache,
-                                         { url: url, at: monotonic, set: set })
-        set
-      rescue StandardError
-        nil
-      end
-
-      def http_get_json(url)
-        uri = URI.parse(url)
-        res = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https",
-                              open_timeout: 3, read_timeout: 3) do |http|
-          http.get(uri.request_uri)
-        end
-        return nil unless res.is_a?(Net::HTTPSuccess)
-        JSON.parse(res.body)
-      rescue StandardError
-        nil
-      end
-
-      def monotonic
-        Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        PersonalAppClient::JwksCache.fetch(ENV[self.class.oauth_rs_jwks_env].presence)
       end
 
       # ---- legacy shared-key fallback ------------------------------------
