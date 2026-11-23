@@ -1,20 +1,24 @@
 # personal_app_client
 
 Shared code for Joe's six personal apps (`base`, `budgeter`, `fitness`,
-`mealplanner`, `postings`, `upkeep`): the inter-app HTTP client, and the Rails
-concerns the apps would otherwise each carry a private copy of.
+`mealplanner`, `postings`, `upkeep`): the inter-app HTTP client, the Rails
+concerns the apps would otherwise each carry a private copy of, and (since
+v0.8.0) a Rails engine with the platform routes, default controllers, the
+shared layout shell, settings panes, PWA and error reporting.
 
 ```ruby
 # Gemfile
-gem "personal_app_client", git: "https://github.com/jnguyen1990/personal-app-client.git", tag: "v0.7.0"
+gem "personal_app_client", git: "https://github.com/jnguyen1990/personal-app-client.git", tag: "v0.8.0"
 ```
 
 `require "personal_app_client"` (which Bundler does for you) loads the plain
 Ruby core: `Client`, `AppClient`, `HubClient`, the errors, `TIME_ZONE`,
-`revision` and `Dates`. Everything else is required explicitly by path, so an
-app only loads what it uses.
+`revision`, `Dates` and the engine configuration. Everything else autoloads on
+first reference (v0.8.0+), so the `require "personal_app_client/…"` lines
+below are optional; they keep working. Inside a Rails app the
+[engine](#the-engine-v080) loads too.
 
-| Module | Require | What it is |
+| Module | Require (optional since v0.8.0) | What it is |
 | --- | --- | --- |
 | [`Client`](#client) | `personal_app_client` | HTTP client for inter-app calls |
 | [`AppClient`](#appclient) | `personal_app_client` | base class for per-app client wrappers |
@@ -40,6 +44,10 @@ app only loads what it uses.
 | [`Rails::DateParams`](#dateparams-and-dates) | `personal_app_client/rails/date_params` | strict date params in controllers |
 | [`Rails::JobStatusReporting`](#jobstatusreporting) | `personal_app_client/rails/job_status_reporting` | report job runs to base |
 | [`Rails::SettingStore`](#settingstore) | `personal_app_client/rails/setting_store` | the key/value `Setting` model |
+| [`Engine`](#the-engine-v080) | loaded inside Rails | routes macro, default controllers, shell, panes, PWA, Railtie |
+| [`configure` / `config`](#configure) | `personal_app_client` | the engine's per-app settings |
+| [`ErrorReporting`](#error-reporting) | `personal_app_client/error_reporting` | deduplicated error events to base |
+| [`DsSnapshot`](#design-system-fallback) | `personal_app_client/ds_snapshot` | copy the design system into `public/ds/` |
 
 Secrets and environment variables are always read when a method runs, never
 when a file loads.
@@ -129,12 +137,13 @@ client = BaseAppClient.new
 client.sync_reminder(source_id: "task-7", title: "Bike: chain", description: "due in 3 days")
 client.delete_reminder("task-7")
 client.report_job_status(name: "upkeep base sync", status: "ok", cadence: "nightly")
+client.report_error(fingerprint: "3f2a…", error_class: "NoMethodError", count: 1) # v0.8.0, see Error reporting
 client.ping
 ```
 
 All three return base's JSON, or `nil` when unconfigured or the call failed
 (logged). Payload keys are checked against what base's controllers permit
-(`HubClient::REMINDER_KEYS`, `HubClient::JOB_STATUS_KEYS`): base silently drops
+(`HubClient::REMINDER_KEYS`, `HubClient::JOB_STATUS_KEYS`, `HubClient::ERROR_EVENT_KEYS`): base silently drops
 anything else, so an unknown key raises `ArgumentError` here instead.
 
 ## TIME_ZONE
@@ -195,6 +204,9 @@ a refresh fails (`PersonalAppClient::JwksCache`, shared with
 own — any tailnet device can send it.
 
 ## RateLimit
+
+On the engine this call is made for you (`config.rate_limit`); the
+initializer below is the pre-v0.8.0 shape.
 
 ```ruby
 # config/initializers/rack_attack.rb
@@ -494,11 +506,224 @@ end
 exactly `"true"`), plus the `key` presence/uniqueness validation. `set` returns
 the stored value; `self.setting_set_returns = :record` returns the record.
 
+## The engine (v0.8.0)
+
+Loaded automatically inside a Rails app (it needs Rails >= 7.1). It is not an
+isolated engine: nothing is mounted, its routes are drawn into the app by a
+macro, and its views sit behind the app's, so **an app overrides any engine
+partial by putting a file at the same path under `app/views/`.**
+
+### Configure
+
+One initializer per app, `config/initializers/personal_app.rb`:
+
+```ruby
+PersonalAppClient.configure do |app|
+  app.app_id = "upkeep"                      # data-app, <title> suffix, default <h1>
+  app.nav_items = [
+    { path: "/",         label: "garage",   ico: "wrench",  key: "1", prefixes: %w[/items] },
+    { path: "/due",      label: "due",      ico: "clock",   key: "2" },
+    { path: "/settings", label: "settings", ico: "sliders", key: "," }
+  ]
+  app.health_targets = -> { [ probe_client("base", BaseAppClient.new) ] }
+end
+```
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `app_id` | the Rails app's module name, underscored | `data-app`, `<title>` suffix, default `<h1>`, MCP server name, backup prefix |
+| `app_name` | `app_id.capitalize` | sidebar brand, PWA name |
+| `nav_items` | `[]` | sidebar items: `path`, `label`, `ico`, `key`, optional `active:` (`:exact` default, `:prefix`, Regexp, Proc of the path) and `prefixes:` (extra prefixes that also mark it active). Or a Proc returning the array, run in the view |
+| `ds_scripts` | `[]` | extra design-system scripts between `shared-core.js` and `modal-keys.js` (base, fitness: `%w[session-render goal-render]`) |
+| `header_style` | `:inline` | `:inline` (title, badge, actions on one row; subtitle under it) or `:split` (title over subtitle on the left, actions right — base) |
+| `subtitle_tag` | `:p` | `:span` reproduces upkeep's and postings' subtitle |
+| `nav_hotkeys` | `true` | emit `installNavHotkeys({ allowComma: true })` before `:extra_js` |
+| `ds_base` | `ENV["DS_BASE"]`, else `https://design-system.joenguyen.ca` | where the design system is loaded from (String or Proc) |
+| `ds_fallback` | `true` | when `public/ds/` exists, every design-system tag falls back to it if the CDN fails |
+| `api_base_controller` | `"Api::BaseController"` | parent of the default MCP / backup / health / client-error controllers (falls back to `PersonalAppClient::ApiController` when the app has none) |
+| `mcp_server_name` | `"<app_id>-mcp"` | MCP `serverInfo.name` |
+| `mcp_tool_registry` | `"Mcp::ToolRegistry"` | registry for the default MCP controller and the connector pane |
+| `backup` | `{}` | `sqlite_backup_config` options, merged over `prefix: app_id, extra_files: %w[CLAUDE.md README.md]` |
+| `health_targets` | `nil` (no targets) | Proc run in the health controller; may call `probe_client` / `probe` / `unconfigured` |
+| `rate_limit` | `{}` | `RateLimit.install!` options (`limit:`, `period:`, …), or `false` to leave it to the app |
+| `rate_limit_rules` | `nil` | Proc receiving `Rack::Attack` for app throttles |
+| `pwa.service_worker` | production only | `true`, `false`, or `:unregister` (kill switch: serves a self-removing worker and unregisters from the page) |
+| `pwa.theme_colors` | `{ light: "#f9f9fb", dark: "#111113" }` | `<meta name="theme-color">` per scheme (the page `--bg`); light is the manifest colour |
+| `pwa.short_name`, `pwa.description` | `app_name` | manifest fields |
+| `pwa.cache_origins` | Google Fonts, jsDelivr, unpkg | origins the worker serves stale-while-revalidate (the design-system origin is always added) |
+| `error_reporting.enabled` | production only | subscribe the reporter (below) |
+| `error_reporting.async` | `true` | deliver on a background thread |
+| `error_reporting.window` | `300` | seconds during which repeats of one fingerprint are counted, not sent |
+| `error_reporting.via` | `HubClient#report_error` | callable taking the payload — base, the hub, records its own |
+| `error_reporting.ignore` | routing, unknown format, CSRF, bad request, missing param, record not found | error class names never reported |
+| `error_reporting.client_errors` | `true` | accept `POST /api/client-errors` and emit the browser hook |
+
+### What the Railtie does at boot
+
+- `config.time_zone` defaults to `PersonalAppClient::TIME_ZONE` (set before
+  the app's own configuration, so `application.rb` can still override it —
+  the line can go).
+- `RateLimit.install!` with `rate_limit` / `rate_limit_rules`, unless the app
+  already called `install!` itself (an old `config/initializers/rack_attack.rb`
+  keeps working and wins) or set `rate_limit = false`.
+- Concerns autoload; `ShellHelper` is in every `ActionController::Base` view;
+  the error reporter subscribes when enabled.
+
+### Routes
+
+```ruby
+Rails.application.routes.draw do
+  personal_app_routes                       # or PersonalAppClient.routes(self)
+  # … the app's own routes
+end
+```
+
+Draws the ten platform routes with the paths, verbs and route names the apps
+wrote by hand (`/.well-known/oauth-protected-resource`, `up`
+(`rails_health_check`), `/api/health/inter-app`, the six `/api/backup/*`,
+`/api/mcp`), plus `GET /manifest.json`, `GET /service-worker.js`,
+`GET /offline` and `POST /api/client-errors`. Each group goes to an engine
+controller unless the app names its own, or `false` skips it:
+
+```ruby
+personal_app_routes backups: "api/backups",       # budgeter: bespoke restore
+                    health: "api/health",         # base: also serves /api/health/cluster
+                    well_known: "oauth/metadata"  # base: it is the AS
+# keys: well_known, up, health, backups, mcp, pwa, client_errors
+```
+
+| Default controller | Behaviour |
+| --- | --- |
+| `PersonalAppClient::McpController` | `McpDispatch` + `OauthResourceServer`, `mcp_server_name`, `mcp_tool_registry` |
+| `PersonalAppClient::BackupsController` | `SqliteBackup` with `backup_options` (operator auth in production, as always) |
+| `PersonalAppClient::HealthController` | `HealthCheck` with `health_targets` |
+| `PersonalAppClient::WellKnownController` | `WellKnown` (an `ActionController::API`) |
+| `PersonalAppClient::ClientErrorsController` | the browser error hook, always 204 |
+| `PersonalAppClient::PwaController` | manifest, service worker, offline page |
+
+The first four inherit `api_base_controller`, so the app's
+`Api::BaseController` before-actions (and `ApplicationController`'s, e.g.
+fitness's per-request zone) still run.
+
+### The shell
+
+The app's `app/views/layouts/application.html.erb` becomes the per-app
+`content_for` blocks plus one line:
+
+```erb
+<% content_for :shell_body_end do %>
+  <%= javascript_include_tag "budgeter" %>
+<% end %>
+<%= render template: "layouts/personal_app/shell" %>
+```
+
+(or `layout "personal_app/shell"` when there is nothing to add). The shell is
+the chrome every app had — DS CSS and JS, icons, sidebar with `nav-ico` items
+and ⌘ hints, empty `sidebar-footer` for the dock, page header, flash, one
+`<h1>`, nav hotkeys — plus: a skip link to `<main id="main">` (`sr-only
+skip-link`: hidden until the design system gives `.skip-link:focus` a visible
+style), a labelled menu button, `viewport-fit=cover` (the DS uses the
+safe-area insets), a preload of the self-hosted Inter, `theme-color` per
+scheme pinned to the app's own theme (and following `ds:themechange`), the DS
+fallback, the manifest, the service-worker registration and the browser error
+hook. `aria-current`, `aria-expanded` and modal roles are shared-core's job
+and are not duplicated here.
+
+Slots: `:head` (end of `<head>`), `:shell_body_start` (before the sidebar),
+`:shell_body_end` (after `</main>`, before the hotkey script), `:extra_js`
+(last), and the page slots `:page_title`, `:page_crumb`, `:title_badge`,
+`:page_subtitle`, `:header_actions`. Partials (override any of them):
+`personal_app/_design_system`, `_sidebar`, `_page_header`, `_flash`.
+
+### Settings panes
+
+```erb
+<%= render "personal_app/settings/connector_pane", description: "Lets Claude log work conversationally." %>
+<%= render "personal_app/settings/backup_pane" %>
+<%= render "personal_app/settings/about_pane", facts: { "Items" => "#{Item.count} tracked" } %>
+```
+
+| Partial | Locals (defaults) |
+| --- | --- |
+| `connector_pane` | `description:`, `tools:` (registry, tool classes or descriptor hashes; default the configured registry), `mcp_url:` (`<request base>/api/mcp`), `auth:` ("OAuth 2.1 · base authorization server"), `hidden:` (true), `pane:` ("connector") |
+| `backup_pane` | `title:` ("Backup and restore"), `subtitle:`, `mode:` (`:full` — create/download, recent backups with Download and Restore, Upload ZIP, typed-RESTORE modal, all self-contained; or `:link` — one "Download backup" link), `hidden:`, `pane:` ("data") |
+| `about_pane` | `lead:` and `facts:` ([label, value] pairs or a Hash, before Rails and after Host), `connector:` (true — the "N tools over MCP" row), `tools:`, `hidden:`, `pane:` ("about") |
+
+The page still calls `initSettingsPanes()`; the backup pane loads its list on
+`settingspane:change`.
+
+### PWA
+
+`/manifest.json` from `app_name` and `pwa`; one shared `/service-worker.js`
+(stale-while-revalidate for the design system and the font/library CDNs;
+network-first HTML with a 4 s timeout, then the last cached copy of that page,
+then `/offline`; `/api/` and non-GETs untouched; caches named per gem version
+and deploy, old ones deleted on activate). Registration is production-only by
+default; `pwa.service_worker = :unregister` is the kill switch.
+
+### Error reporting
+
+When `error_reporting.enabled?` (production by default) the engine reports:
+
+- exceptions Rails reports to `Rails.error` — an unhandled controller
+  exception rendered as a 500, a job that raised inside the executor —
+  plus anything the app reports at severity `:error` (handled warnings are
+  not);
+- 5xx responses that were rendered, not raised (`render status: 500`);
+- MCP tool crashes (`McpDispatch` answers those 200 with a JSON-RPC error;
+  `ArgumentError` and record-not-found / invalid are bad input, not reported);
+- browser errors: the shell's `window.onerror` / `unhandledrejection` hook
+  (at most five per page) posts to `POST /api/client-errors`.
+
+Each event gets a fingerprint (kind, class, first app frame without its line
+number, message with digits and ids normalised). The first occurrence is
+sent; repeats inside `window` are counted and the next send carries `count`.
+The default delivery is `HubClient#report_error`, on a background thread:
+
+```
+POST <base>/api/error-events/sync          (X-App-Auth)
+{ source_app, fingerprint, kind ("server" | "job" | "client"), error_class,
+  message, location, backtrace, origin ("Controller#action" | job class | "browser"),
+  path, request_method, status, severity, handled, source, revision,
+  occurred_at, count }
+```
+
+base keys rows on `(source_app, fingerprint)` and adds `count`. Until base has
+that endpoint the post 404s and is logged at warn. Delivery never raises into
+the failed request or job, and errors raised while delivering are not
+reported (no loops).
+
+### Design-system fallback
+
+```sh
+bin/rails personal_app:ds:snapshot    # DS_BASE=… to copy from elsewhere
+```
+
+Copies the design-system files (and any relative `url()` the stylesheet
+references) into `public/ds/`, swapping the directory in only when every file
+arrived — a failed run keeps the previous snapshot and does not fail the
+deploy. Run it from `bin/deploy`; gitignore `public/ds/`. With the snapshot
+present the shell's tags fall back to it when the CDN fails.
+
+### Interoperability
+
+v0.8.0 changes no inter-app wire format: `X-App-Auth`, the health payload
+(`ok`, `checked_at`, `revision`, `targets`), the backup endpoints and the
+reminder / job-status payloads are what v0.7.0 sends and accepts. The engine
+specs run the v0.7.0 code from its tag against a v0.8.0 app to prove it.
+
 ## Local dev
 
 ```sh
 bundle install
-bundle exec rspec
+bundle exec rake          # unit specs, then the engine specs (twice: lazy and eager loading)
+bundle exec rake spec:unit
+bundle exec rake spec:engine
 ```
+
+The unit specs (`spec/personal_app_client/`) run against a fake `::Rails`;
+the engine specs (`spec/engine/`) boot the dummy app in `spec/dummy/` in their
+own process. To try an unreleased gem in an app, point its Gemfile at the
+checkout without committing it: `gem "personal_app_client", path: "../personal-app-client"`.
 
 Releases are git tags; see [CHANGELOG.md](CHANGELOG.md).
