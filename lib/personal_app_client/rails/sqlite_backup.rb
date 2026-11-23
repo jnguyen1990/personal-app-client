@@ -92,9 +92,8 @@ module PersonalAppClient
       end
 
       def create_backup
-        timestamp = Time.now.strftime("%Y%m%d_%H%M%S")
-        filename = "#{backup_prefix}_backup_#{timestamp}.zip"
-        backup_path = ::Rails.root.join("tmp", filename)
+        backup_path = fresh_backup_path
+        filename = backup_path.basename.to_s
 
         require "zip"
 
@@ -221,9 +220,8 @@ module PersonalAppClient
         end
 
         # Create safety backup first
-        safety_timestamp = Time.now.strftime("%Y%m%d_%H%M%S")
-        safety_filename = "#{backup_prefix}_backup_#{safety_timestamp}.zip"
-        safety_path = ::Rails.root.join("tmp", safety_filename)
+        safety_path = fresh_backup_path
+        safety_filename = safety_path.basename.to_s
 
         checkpoint_wal! if backup_option(:wal_checkpoint)
         write_backup_zip(safety_path, db_path: resolved_db_path)
@@ -426,6 +424,21 @@ module PersonalAppClient
       def backup_keep
         keep = backup_option(:keep).to_i
         keep < 1 ? 3 : keep
+      end
+
+      # tmp/<prefix>_backup_<timestamp>.zip for a file that does not exist
+      # yet. Names have one-second resolution and write_backup_zip opens with
+      # create: true, so a second backup in the same second used to be
+      # written INTO the first — including the safety backup of a restore
+      # run right after a create, i.e. into the very ZIP being restored.
+      # A taken name moves the timestamp on a second (the format, which
+      # download/restore validate, stays the same).
+      def fresh_backup_path(now = Time.now)
+        60.times do |offset|
+          path = ::Rails.root.join("tmp", "#{backup_prefix}_backup_#{(now + offset).strftime('%Y%m%d_%H%M%S')}.zip")
+          return path unless File.exist?(path)
+        end
+        raise "no free backup filename near #{now}"
       end
 
       def backup_filename_regexp

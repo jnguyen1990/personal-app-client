@@ -127,6 +127,25 @@ RSpec.describe PersonalAppClient::Rails::SqliteBackup do
       end
     end
 
+    # Names have one-second resolution and the ZIP is opened with create:
+    # true, so a second backup in the same second used to be written INTO
+    # the first (and a restore's safety backup into the ZIP being restored).
+    it "never writes into an existing ZIP made in the same second" do
+      frozen = Time.new(2026, 11, 23, 9, 30, 0)
+      allow(Time).to receive(:now).and_return(frozen)
+      controller.create_backup
+      first = controller.rendered[:json][:filename]
+      second_controller = FakeBackupsController.new
+      second_controller.create_backup
+      second = second_controller.rendered[:json][:filename]
+
+      expect(first).to eq("testapp_backup_20261123_093000.zip")
+      expect(second).to eq("testapp_backup_20261123_093001.zip")
+      Zip::File.open(tmp_dir.join(first).to_s) do |z|
+        expect(z.entries.map(&:name).tally.values.max).to eq(1)
+      end
+    end
+
     it "prunes to `keep` after writing the new backup" do
       (1..6).each do |i|
         File.write(tmp_dir.join(format("testapp_backup_202401%02d_000000.zip", i)), "x")
