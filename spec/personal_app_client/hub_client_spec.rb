@@ -23,6 +23,32 @@ RSpec.describe PersonalAppClient::HubClient do
     )
   end
 
+  describe "#report_error" do
+    before { answer(:post, "/api/error-events/sync", { "id" => 3 }) }
+
+    let(:event) do
+      { fingerprint: "0123456789abcdef", kind: "server", error_class: "NoMethodError",
+        message: "undefined method", location: "app/models/item.rb:4", count: 2 }
+    end
+
+    it "POSTs the event with source_app to base's error-events sync" do
+      expect(client.report_error(event)).to eq("id" => 3)
+      expect(last_request).to include(method: "POST", path: "/api/error-events/sync")
+      expect(last_request[:headers]["x-app-auth"]).to eq("shh")
+      expect(last_request[:json]).to include("source_app" => "upkeep", "fingerprint" => "0123456789abcdef", "count" => 2)
+    end
+
+    it "checks keys against what base accepts" do
+      expect { client.report_error(event.merge(user: "joe")) }.to raise_error(ArgumentError, /unknown error event key\(s\) user/)
+      expect { client.report_error(event.except(:fingerprint)) }.to raise_error(ArgumentError, /needs fingerprint/)
+    end
+
+    it "returns nil when base does not have the endpoint yet" do
+      server.on(:post, "/api/error-events/sync") { |_req, res| res.status = 404 }
+      expect(client.report_error(event)).to be_nil
+    end
+  end
+
   describe "#sync_reminder" do
     before { answer(:post, "/api/reminders/sync", { "id" => 12 }) }
 

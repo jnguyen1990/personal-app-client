@@ -19,7 +19,9 @@ module PersonalAppClient
   #     Mcp::Registry, RateLimit and TestSupport autoload on first reference,
   #     so the apps' `require "personal_app_client/…"` lines can go;
   #   * routes — the `personal_app_routes` macro in config/routes.rb;
-  #   * helpers — ShellHelper in every ActionController::Base view.
+  #   * helpers — ShellHelper in every ActionController::Base view;
+  #   * error reporting — when config.error_reporting.enabled? (production
+  #     by default): see ErrorReporting.
   class Engine < ::Rails::Engine
     engine_name "personal_app_client"
 
@@ -46,9 +48,12 @@ module PersonalAppClient
       PersonalAppClient::RateLimit.install!(app: app, **options.to_h.transform_keys(&:to_sym), &rules)
     end
 
+    initializer "personal_app_client.error_reporting", after: :load_config_initializers do
+      PersonalAppClient::ErrorReporting.install! if PersonalAppClient.config.error_reporting.enabled?
+    end
+
     # lib/tasks/personal_app_client.rake (personal_app:ds:snapshot) is loaded
     # by Rails::Engine itself, from the engine root's lib/tasks.
-
   end
 end
 

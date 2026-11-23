@@ -21,7 +21,7 @@ module PersonalAppClient
   #     POST /api/mcp                                mcp#handle
   #
   # plus the engine's own: GET /manifest.json, GET /service-worker.js,
-  # GET /offline (PWA).
+  # GET /offline (PWA) and POST /api/client-errors (browser error hook).
   #
   # Each group goes to the engine's default controller unless the app names
   # its own (a controller path, as `to:` takes it), or `false` to skip it:
@@ -35,6 +35,7 @@ module PersonalAppClient
       health: "personal_app_client/health",
       backups: "personal_app_client/backups",
       mcp: "personal_app_client/mcp",
+      client_errors: "personal_app_client/client_errors",
       pwa: "personal_app_client/pwa",
       up: "rails/health"
     }.freeze
@@ -74,6 +75,8 @@ module PersonalAppClient
           post "backup/restore", to: "#{c[:backups]}#restore"
           post "backup/restore-upload", to: "#{c[:backups]}#restore_upload"
         end
+
+        post "client-errors", to: "#{c[:client_errors]}#create", as: :client_errors if c[:client_errors]
       end
     end
   end

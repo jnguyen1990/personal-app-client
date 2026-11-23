@@ -75,6 +75,7 @@ module PersonalAppClient
         }
       rescue => e
         ::Rails.logger.error("[MCP] #{e.class}: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+        report_mcp_error(e)
         render json: {
           jsonrpc: "2.0",
           id: req["id"],
@@ -82,7 +83,20 @@ module PersonalAppClient
         }
       end
 
+      # Bad arguments from the model, not bugs: tools raise ArgumentError for
+      # them (Mcp::BaseTool.parse_date_arg! and friends).
+      UNREPORTED_ERRORS = %w[ArgumentError ActiveRecord::RecordInvalid ActiveRecord::RecordNotFound].freeze
+
       private
+
+      # A crashing tool answers 200 with a JSON-RPC error, so no 5xx would
+      # ever surface it: report it to Rails.error (v0.8.0), where the
+      # engine's ErrorReporting picks it up.
+      def report_mcp_error(error)
+        return unless ::Rails.respond_to?(:error) && ::Rails.error.respond_to?(:report)
+        return if error.class.ancestors.any? { |mod| UNREPORTED_ERRORS.include?(mod.name) }
+        ::Rails.error.report(error, handled: true, severity: :error, source: "personal_app_client.mcp")
+      end
 
       def dispatch_rpc(method, params)
         case method

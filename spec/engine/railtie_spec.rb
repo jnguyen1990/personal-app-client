@@ -29,6 +29,10 @@ RSpec.describe PersonalAppClient::Engine do
     expect(PersonalAppClient::TestSupport).to be_a(Module)
   end
 
+  it "subscribes the error reporter when enabled" do
+    expect(PersonalAppClient::ErrorReporting.reporter).to be_a(PersonalAppClient::ErrorReporting::Reporter)
+  end
+
   it "adds the shell helper to every view" do
     expect(ApplicationController.helpers).to respond_to(:personal_app_nav_items)
     expect(ActionController::Base.helpers).to respond_to(:personal_app_title)

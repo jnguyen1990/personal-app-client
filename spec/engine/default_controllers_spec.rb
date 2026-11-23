@@ -19,6 +19,15 @@ RSpec.describe "default controllers" do
       expect(last_response.headers["X-Dummy-Api-Base"]).to eq("1")
       expect(PersonalAppClient::McpController.superclass).to eq(Api::BaseController)
     end
+
+    it "reports a crashing tool, but not a bad argument" do
+      crash = mcp_post("tools/call", name: "crash", arguments: {})
+      expect(crash.dig("error", "code")).to eq(-32603)
+      picky = mcp_post("tools/call", name: "picky", arguments: {})
+      expect(picky.dig("error", "code")).to eq(-32603)
+      expect(Dummy::DELIVERED_ERRORS.map { |e| e[:error_class] }).to eq([ "ZeroDivisionError" ])
+      expect(Dummy::DELIVERED_ERRORS.first).to include(source: "personal_app_client.mcp", origin: "PersonalAppClient::McpController#handle")
+    end
   end
 
   describe "health (GET /api/health/inter-app)" do

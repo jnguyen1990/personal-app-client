@@ -62,6 +62,7 @@ RSpec.configure do |config|
 
   config.before do
     Dummy::DELIVERED_ERRORS.clear
+    PersonalAppClient::ErrorReporting.reporter&.deduper&.clear
   end
 
   config.after(:suite) do

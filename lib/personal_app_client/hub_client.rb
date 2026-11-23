@@ -15,6 +15,7 @@ module PersonalAppClient
   #     client.sync_reminder(source_id: "task-7", title: "Bike: chain", description: "…")
   #     client.delete_reminder("task-7")
   #     client.report_job_status(name: "upkeep base sync", status: "ok", cadence: "nightly")
+  #     client.report_error(fingerprint: "3f…", error_class: "NoMethodError", …)
   #
   # The URL comes from Setting "base_app_url", else "self_app_url" (the two
   # keys the apps use today), else http://localhost:3001 in development/test.
@@ -38,6 +39,14 @@ module PersonalAppClient
     JOB_STATUS_KEYS = %i[
       name status detail cadence schedule ran_at duration_seconds
       expect_within url log
+    ].freeze
+
+    # Api::ErrorEventsController#sync (base's /errors page). Keyed on
+    # (source_app, fingerprint); `count` is how many occurrences this report
+    # stands for. See PersonalAppClient::ErrorReporting.
+    ERROR_EVENT_KEYS = %i[
+      fingerprint kind error_class message location backtrace origin path
+      request_method status severity handled source revision occurred_at count
     ].freeze
 
     # Idempotent upsert keyed on (source_app, source_id). Returns base's
@@ -69,6 +78,18 @@ module PersonalAppClient
         raise ArgumentError, "job status payload needs #{key}" if payload[key].blank?
       end
       attempt("report_job_status") { |http| http.post("/api/job-statuses/sync", payload) }
+    end
+
+    # Report one deduplicated error event to base (fire-and-forget, logged at
+    # warn on failure). `fingerprint` and `error_class` are required.
+    def report_error(payload)
+      payload = checked_payload(payload, ERROR_EVENT_KEYS, "error event")
+      %i[fingerprint error_class].each do |key|
+        raise ArgumentError, "error event payload needs #{key}" if payload[key].blank?
+      end
+      attempt("report_error", level: :warn) do |http|
+        http.post("/api/error-events/sync", payload.merge(source_app: source_app))
+      end
     end
 
     # The (source_app, …) half of the reminder key. Defaults to the Rails

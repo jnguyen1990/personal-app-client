@@ -221,6 +221,22 @@ RSpec.describe "layouts/personal_app/shell" do
       expect(html).to include("navigator.serviceWorker.register('/service-worker.js')")
     end
 
+    it "installs the browser error hook before the design-system scripts" do
+      get_html "/"
+      head = doc.at("head").element_children
+      hook = head.index { |el| el.name == "script" && el.text.include?("/api/client-errors") }
+      first_ds = head.index { |el| el["src"].to_s.include?("shared-core") }
+      expect(hook).to be < first_ds
+    end
+
+    it "omits the error hook when reporting is off" do
+      PersonalAppClient.config.error_reporting.enabled = false
+      get_html "/"
+      expect(html).not_to include("/api/client-errors")
+    ensure
+      PersonalAppClient.config.error_reporting.enabled = true
+    end
+
     it "unregisters instead when the kill switch is set" do
       PersonalAppClient.config.pwa.service_worker = :unregister
       get_html "/"
