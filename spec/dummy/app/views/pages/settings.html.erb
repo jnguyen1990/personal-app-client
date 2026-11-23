@@ -1,1 +1,13 @@
 <% content_for :page_title, "settings" %>
+<div class="settings-pane">
+  <nav class="settings-nav" id="settingsNav">
+    <a href="#connector" data-pane="connector">Claude connector</a>
+    <a href="#data" data-pane="data">Backup and restore</a>
+    <a href="#about" data-pane="about">About this app</a>
+  </nav>
+  <div>
+    <%= render "personal_app/settings/connector_pane", description: "Lets Claude poke the dummy." %>
+    <%= render "personal_app/settings/backup_pane" %>
+    <%= render "personal_app/settings/about_pane", lead: [ [ "Version", "1.2.3" ] ], facts: { "Notes" => "7 kept" } %>
+  </div>
+</div>

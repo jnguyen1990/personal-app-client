@@ -1,0 +1,24 @@
+<%# locals: (facts: [], lead: [], connector: true, tools: nil, hidden: true, pane: "about") -%>
+<%# The "About this app" settings pane. Rows, in order: `lead` pairs, Rails,
+    Host, `facts` pairs, Connector (tool count; connector: false drops it),
+    Design system. `facts` / `lead` are [label, value] pairs or a Hash:
+      render "personal_app/settings/about_pane", facts: { "Items" => "#{Item.count} tracked" } -%>
+<section class="pane" data-pane="<%= pane %>"<%= " hidden" if hidden %>>
+      <div class="card">
+        <h3 class="card-title" style="margin-bottom: var(--space-4)">About this app</h3>
+        <dl class="detail-list">
+          <% lead.to_a.each do |label, value| %>
+          <dt><%= label %></dt><dd><%= value %></dd>
+          <% end %>
+          <dt>Rails</dt><dd><%= Rails.version %> · ruby <%= RUBY_VERSION %></dd>
+          <dt>Host</dt><dd><%= request.host %></dd>
+          <% facts.to_a.each do |label, value| %>
+          <dt><%= label %></dt><dd><%= value %></dd>
+          <% end %>
+          <% if connector %>
+          <dt>Connector</dt><dd><%= personal_app_mcp_tools(tools).size %> tools over MCP</dd>
+          <% end %>
+          <dt>Design system</dt><dd>design-system.joenguyen.ca</dd>
+        </dl>
+      </div>
+    </section>

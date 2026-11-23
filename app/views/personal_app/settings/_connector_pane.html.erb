@@ -1,0 +1,38 @@
+<%# locals: (description: "Lets Claude read and change this app in plain language.", tools: nil, mcp_url: nil, auth: "OAuth 2.1 · base authorization server", hidden: true, pane: "connector") -%>
+<%# The "Claude connector" settings pane: endpoint, auth, and the tool list
+    from the MCP tool registry (config.mcp_tool_registry), so it cannot rot.
+      render "personal_app/settings/connector_pane", description: "Lets Claude …" -%>
+<% tools = personal_app_mcp_tools(tools) -%>
+<section class="pane" data-pane="<%= pane %>"<%= " hidden" if hidden %>>
+      <div class="card-stack">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Claude connector</h3>
+              <p class="card-subtitle"><%= description %></p>
+            </div>
+            <span class="badge badge--green"><%= tools.size %> tools</span>
+          </div>
+          <dl class="detail-list">
+            <dt>Endpoint</dt>
+            <dd class="d-flex align-center gap-2">
+              <span class="truncate" id="mcp-url"><%= mcp_url || personal_app_mcp_url %></span>
+              <button type="button" class="btn btn-ghost btn-sm" data-copy-target="#mcp-url">Copy</button>
+            </dd>
+            <dt>Authentication</dt><dd><%= auth %></dd>
+          </dl>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title" style="margin-bottom: var(--space-3)">Available tools</h3>
+          <div class="tool-grid">
+            <% tools.each do |tool| %>
+              <div class="tool-item">
+                <code><%= tool[:name] %></code>
+                <span><%= personal_app_tool_summary(tool[:description]) %></span>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </section>

@@ -1,0 +1,164 @@
+<%# locals: (title: "Backup and restore", subtitle: "A backup is a ZIP of the database plus the repo files. Restoring overwrites everything, after taking a safety backup first.", mode: :full, hidden: true, pane: "data") -%>
+<%# The backup settings pane, against the SqliteBackup endpoints.
+      mode: :full  create (downloads the ZIP), recent backups with Download /
+                   Restore, Upload ZIP; restore asks for "RESTORE" typed in
+      mode: :link  one "Download backup" link to /api/backup/create (what
+                   upkeep and the template had; that URL answers JSON)
+    Self-contained: no app JS, no ids the page must provide. The restore
+    modal moves itself to <body> (modals go outside the pane grid). -%>
+<section class="pane" data-pane="<%= pane %>"<%= " hidden" if hidden %>>
+<% if mode.to_s == "link" -%>
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title"><%= title %></h3>
+            <p class="card-subtitle"><%= subtitle %></p>
+          </div>
+          <a href="/api/backup/create" class="btn btn-primary btn-sm">Download backup</a>
+        </div>
+      </div>
+<% else -%>
+      <div class="card" data-pa-backup data-pane-name="<%= pane %>">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title"><%= title %></h3>
+            <p class="card-subtitle"><%= subtitle %></p>
+          </div>
+          <div class="d-flex gap-2">
+            <input type="file" accept=".zip" data-pa-backup-file hidden>
+            <button type="button" class="btn btn-secondary btn-sm" data-pa-backup-upload>Upload ZIP</button>
+            <button type="button" class="btn btn-primary btn-sm" data-pa-backup-create>Create backup</button>
+          </div>
+        </div>
+        <div data-pa-backup-list></div>
+      </div>
+
+      <div id="pa-restore-modal" class="modal">
+        <div class="modal-box">
+          <div class="modal-header"><h3 class="modal-title" style="color:var(--red-11)">Restore database</h3><button type="button" data-modal-close class="modal-close" aria-label="Close">&times;</button></div>
+          <div class="modal-body">
+            <p>This replaces all current data with the backup. A safety backup of what is here now is taken first.</p>
+            <p>Restoring <code data-pa-restore-name></code></p>
+            <div class="form-group">
+              <label class="form-label" for="pa-restore-confirm">Type <code>RESTORE</code> to confirm</label>
+              <input type="text" id="pa-restore-confirm" class="form-control" placeholder="RESTORE" autocomplete="off">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" data-modal-close class="btn btn-secondary">Cancel</button>
+            <button type="button" data-pa-restore-go class="btn btn-danger" disabled>Restore database</button>
+          </div>
+        </div>
+      </div>
+
+      <script>
+      (function () {
+        var card = document.currentScript.parentNode.querySelector('[data-pa-backup]');
+        var modal = document.getElementById('pa-restore-modal');
+        if (!card || !modal) return;
+        document.body.appendChild(modal);
+        var list = card.querySelector('[data-pa-backup-list]');
+        var fileInput = card.querySelector('[data-pa-backup-file]');
+        var confirmInput = modal.querySelector('#pa-restore-confirm');
+        var go = modal.querySelector('[data-pa-restore-go]');
+        var pending = null; // { filename } or { file }
+
+        function toast(message, type) {
+          if (window.dsToast) dsToast(message, type); else if (type === 'error') alert(message);
+        }
+
+        function esc(value) { return window.escapeHtml ? escapeHtml(String(value)) : String(value); }
+
+        function load() {
+          apiRequest('/api/backup/list').then(function (backups) {
+            if (!backups.length) {
+              list.innerHTML = '<p class="text-muted" style="font-size:var(--text-sm);margin-top:var(--space-4)">No backups on disk yet</p>';
+              return;
+            }
+            list.innerHTML = '<h3 class="subsection-title" style="margin: var(--space-4) 0 var(--space-1)">Recent backups</h3>' +
+              backups.map(function (b) {
+                var meta = [b.size_mb != null ? b.size_mb + ' MB' : null, b.created].filter(Boolean).join(' · ');
+                return '<div class="bk-row"><div><div class="bk-name">' + esc(b.filename) + '</div>' +
+                  '<div class="bk-meta">' + esc(meta) + '</div></div>' +
+                  '<span class="row-actions">' +
+                  '<a href="' + esc(b.download_url) + '" class="btn btn-ghost btn-sm" download>Download</a>' +
+                  '<button type="button" class="btn btn-ghost btn-sm" data-pa-restore="' + esc(b.filename) + '">Restore</button>' +
+                  '</span></div>';
+              }).join('');
+          }).catch(function () {
+            list.innerHTML = '<p class="text-muted" style="font-size:var(--text-sm);margin-top:var(--space-4)">Could not list backups</p>';
+          });
+        }
+
+        function ask(target, name) {
+          pending = target;
+          modal.querySelector('[data-pa-restore-name]').textContent = name;
+          confirmInput.value = '';
+          go.disabled = true;
+          go.textContent = 'Restore database';
+          openModal('pa-restore-modal');
+          confirmInput.focus();
+        }
+
+        card.querySelector('[data-pa-backup-create]').addEventListener('click', function (e) {
+          var btn = e.currentTarget;
+          btn.disabled = true;
+          btn.textContent = 'Creating…';
+          apiRequest('/api/backup/create').then(function (result) {
+            window.location.href = result.download_url;
+            load();
+            toast('Backup created', 'success');
+          }).catch(function (err) {
+            toast(err.serverMessage || 'Could not create a backup', 'error');
+          }).finally(function () {
+            btn.textContent = 'Create backup';
+            btn.disabled = false;
+          });
+        });
+
+        card.querySelector('[data-pa-backup-upload]').addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () {
+          if (!fileInput.files.length) return;
+          var file = fileInput.files[0];
+          fileInput.value = '';
+          ask({ file: file }, file.name);
+        });
+        list.addEventListener('click', function (e) {
+          var btn = e.target.closest('[data-pa-restore]');
+          if (btn) ask({ filename: btn.getAttribute('data-pa-restore') }, btn.getAttribute('data-pa-restore'));
+        });
+        confirmInput.addEventListener('input', function () { go.disabled = confirmInput.value !== 'RESTORE'; });
+
+        go.addEventListener('click', function () {
+          if (confirmInput.value !== 'RESTORE' || !pending) return;
+          go.disabled = true;
+          go.textContent = 'Restoring…';
+          var request;
+          if (pending.file) {
+            var form = new FormData();
+            form.append('file', pending.file);
+            request = apiRequest('/api/backup/restore-upload', { method: 'POST', body: form });
+          } else {
+            request = apiRequest('/api/backup/restore', { method: 'POST', body: JSON.stringify({ filename: pending.filename }) });
+          }
+          request.then(function (result) {
+            closeModal('pa-restore-modal');
+            toast('Database restored — safety backup: ' + result.safety_backup, 'success');
+            setTimeout(function () { window.location.reload(); }, 2000);
+          }).catch(function (err) {
+            go.textContent = 'Restore database';
+            go.disabled = false;
+            toast(err.serverMessage || 'Restore failed', 'error');
+          });
+        });
+
+        // Load when the pane opens. Subscribed while the page parses, so it is
+        // in place before the page's initSettingsPanes() fires the first event.
+        var paneName = card.getAttribute('data-pane-name');
+        document.addEventListener('settingspane:change', function (e) {
+          if (e.detail && e.detail.pane === paneName) load();
+        });
+      })();
+      </script>
+<% end -%>
+    </section>
