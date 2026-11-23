@@ -6,7 +6,7 @@ RSpec.describe "autoloading" do
   it "resolves every optional module from a bare require of the gem" do
     script = <<~RUBY
       require "personal_app_client"
-      mods = %w[CloudflareAccess JwksCache Nav RateLimit Routes TestSupport
+      mods = %w[CloudflareAccess JwksCache Nav RateLimit Routes DsSnapshot TestSupport
                 Mcp::BaseTool Mcp::Registry
                 Rails::ApiErrors Rails::ApiKeyAuth Rails::DateParams Rails::HealthCheck Rails::InterAppAuth
                 Rails::InterAppAuthOptional Rails::JobStatusReporting Rails::McpDispatch

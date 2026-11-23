@@ -1,0 +1,108 @@
+<% pwa = PersonalAppClient.config.pwa -%>
+<% ds_origin = (URI.parse(PersonalAppClient.config.ds_base).then { |u| "#{u.scheme}://#{u.host}#{":#{u.port}" unless [ 80, 443 ].include?(u.port)}" } rescue nil) -%>
+// personal_app_client <%= PersonalAppClient::VERSION %> — the shared service worker.
+<% if @unregister -%>
+// Kill switch (config.pwa.service_worker = :unregister): drop every cache
+// this worker made, unregister, and reload open pages onto the network.
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k.startsWith('pa-')).map((k) => caches.delete(k)));
+    await self.registration.unregister();
+    const clients = await self.clients.matchAll({ type: 'window' });
+    clients.forEach((client) => client.navigate(client.url));
+  })());
+});
+<% else -%>
+//
+//   design system + font/library CDNs   stale-while-revalidate
+//   page navigations (HTML)             network first (4s), then the last
+//                                       cached copy, then /offline
+//   everything else (/api/, POSTs, …)   not touched
+//
+// Caches are named per gem version and deploy, and the old ones are deleted
+// on activate, so a release never serves another release's pages.
+const CACHE = <%= raw @cache_name.to_json %>;
+const OFFLINE_URL = <%= raw pwa_offline_path.to_json %>;
+const ASSET_ORIGINS = <%= raw ([ ds_origin ] + Array(pwa.cache_origins)).compact.uniq.to_json %>;
+const NAV_TIMEOUT_MS = 4000;
+
+self.addEventListener('install', (event) => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await cache.add(new Request(OFFLINE_URL, { credentials: 'same-origin' })).catch(() => {});
+    self.skipWaiting();
+  })());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k.startsWith('pa-') && k !== CACHE).map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
+});
+
+function isAsset(url) {
+  return ASSET_ORIGINS.indexOf(url.origin) !== -1;
+}
+
+function cacheable(response) {
+  // Opaque (no-cors) responses are all a cross-origin <script>/<link> gets;
+  // they cannot be inspected, so they are kept and revalidated every load.
+  return response && (response.ok || response.type === 'opaque');
+}
+
+async function staleWhileRevalidate(event) {
+  const cache = await caches.open(CACHE);
+  const cached = await cache.match(event.request);
+  const network = fetch(event.request).then((response) => {
+    if (cacheable(response)) cache.put(event.request, response.clone());
+    return response;
+  });
+  if (cached) {
+    event.waitUntil(network.catch(() => {}));
+    return cached;
+  }
+  return network;
+}
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    promise.then((value) => { clearTimeout(timer); resolve(value); },
+                 (error) => { clearTimeout(timer); reject(error); });
+  });
+}
+
+async function networkFirst(event) {
+  const cache = await caches.open(CACHE);
+  try {
+    const response = await withTimeout(fetch(event.request), NAV_TIMEOUT_MS);
+    // Only real pages: never a redirect (Cloudflare Access login) or an error.
+    if (response.ok && response.type === 'basic' && !response.redirected) {
+      cache.put(event.request, response.clone());
+    }
+    return response;
+  } catch (_) {
+    return (await cache.match(event.request)) ||
+           (await cache.match(OFFLINE_URL)) ||
+           new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+  }
+}
+
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+
+  if (request.mode === 'navigate' && url.origin === self.location.origin) {
+    if (url.pathname.startsWith('/api/')) return;
+    event.respondWith(networkFirst(event));
+    return;
+  }
+
+  if (isAsset(url)) event.respondWith(staleWhileRevalidate(event));
+});
+<% end -%>

@@ -1,0 +1,30 @@
+<% app = PersonalAppClient.config -%>
+<!DOCTYPE html>
+<html lang="en" data-app="<%= app.app_id %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>offline · <%= app.app_id %></title>
+    <%# Served from the service worker's cache, so the stylesheet is the cached copy too. %>
+    <link rel="stylesheet" href="<%= app.ds_base %>/design-system.css">
+    <script>try { if ((localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark') { document.documentElement.classList.add('dark'); document.documentElement.setAttribute('data-theme', 'dark'); } } catch (_) {}</script>
+</head>
+<body>
+    <main id="main">
+        <header class="page-header">
+            <div class="d-flex align-center gap-3">
+                <h1 class="page-title">You're offline</h1>
+            </div>
+            <p class="page-subtitle"><%= app.app_name %> can't be reached right now</p>
+        </header>
+        <div class="content">
+            <div class="card">
+                <p class="card-subtitle">Pages you opened recently still load from this device. Everything else comes back when the connection does.</p>
+                <div class="d-flex gap-2" style="margin-top: var(--space-3)">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="location.reload()">Try again</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

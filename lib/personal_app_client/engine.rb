@@ -46,6 +46,9 @@ module PersonalAppClient
       PersonalAppClient::RateLimit.install!(app: app, **options.to_h.transform_keys(&:to_sym), &rules)
     end
 
+    # lib/tasks/personal_app_client.rake (personal_app:ds:snapshot) is loaded
+    # by Rails::Engine itself, from the engine root's lib/tasks.
+
   end
 end
 

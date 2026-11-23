@@ -20,6 +20,9 @@ module PersonalAppClient
   #     POST /api/backup/restore-upload              backups#restore_upload
   #     POST /api/mcp                                mcp#handle
   #
+  # plus the engine's own: GET /manifest.json, GET /service-worker.js,
+  # GET /offline (PWA).
+  #
   # Each group goes to the engine's default controller unless the app names
   # its own (a controller path, as `to:` takes it), or `false` to skip it:
   #
@@ -32,6 +35,7 @@ module PersonalAppClient
       health: "personal_app_client/health",
       backups: "personal_app_client/backups",
       mcp: "personal_app_client/mcp",
+      pwa: "personal_app_client/pwa",
       up: "rails/health"
     }.freeze
 
@@ -45,6 +49,12 @@ module PersonalAppClient
       get "/.well-known/oauth-protected-resource", to: "#{c[:well_known]}#protected_resource" if c[:well_known]
 
       get "up" => "#{c[:up]}#show", as: :rails_health_check if c[:up]
+
+      if c[:pwa]
+        get "manifest.json", to: "#{c[:pwa]}#manifest", as: :pwa_manifest, format: false
+        get "service-worker.js", to: "#{c[:pwa]}#service_worker", as: :pwa_service_worker, format: false
+        get "offline", to: "#{c[:pwa]}#offline", as: :pwa_offline
+      end
 
       scope path: "api", as: "api" do
         # MCP (Model Context Protocol) — JSON-RPC over Streamable HTTP.

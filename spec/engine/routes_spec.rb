@@ -32,13 +32,13 @@ RSpec.describe "personal_app_routes" do
   it "matches the hand-written routes when pointed at the apps' own controllers" do
     macro = draw do
       personal_app_routes well_known: "well_known", mcp: "api/mcp", health: "api/health",
-                          backups: "api/backups"
+                          backups: "api/backups", pwa: false
     end
     expect(macro).to match_array(hand_written)
   end
 
   it "keeps paths, verbs and names with the engine's default controllers" do
-    macro = draw { personal_app_routes }
+    macro = draw { personal_app_routes pwa: false }
     strip = ->(routes) { routes.map { |r| r.except(:to) } }
     expect(strip.call(macro)).to match_array(strip.call(hand_written))
     expect(macro.map { |r| r[:to] }).to include(
@@ -46,6 +46,16 @@ RSpec.describe "personal_app_routes" do
       "personal_app_client/health#inter_app", "personal_app_client/backups#restore_upload",
       "rails/health#show"
     )
+  end
+
+  it "adds the PWA routes by default" do
+    macro = draw { personal_app_routes }
+    added = macro.map { |r| [ r[:verb], r[:path], r[:name] ] } - hand_written.map { |r| [ r[:verb], r[:path], r[:name] ] }
+    expect(added).to match_array([
+      [ "GET", "/manifest.json", "pwa_manifest" ],
+      [ "GET", "/service-worker.js", "pwa_service_worker" ],
+      [ "GET", "/offline(.:format)", "pwa_offline" ]
+    ])
   end
 
   it "skips a group set to false" do
@@ -60,13 +70,13 @@ RSpec.describe "personal_app_routes" do
   end
 
   it "has a non-DSL form" do
-    macro = draw { PersonalAppClient.routes(self) }
+    macro = draw { PersonalAppClient.routes(self, pwa: false) }
     expect(macro.size).to eq(hand_written.size)
   end
 
   it "is what the dummy app draws" do
     names = Rails.application.routes.routes.map(&:name).compact
     expect(names).to include("rails_health_check", "api_mcp", "api_health_inter_app", "api_backup_create",
-                             "api_backup_restore_upload")
+                             "api_backup_restore_upload", "pwa_manifest")
   end
 end

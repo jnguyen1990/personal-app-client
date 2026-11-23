@@ -17,6 +17,7 @@ module PersonalAppClient
   autoload :Nav, "personal_app_client/nav"
   autoload :RateLimit, "personal_app_client/rate_limit"
   autoload :Routes, "personal_app_client/routes"
+  autoload :DsSnapshot, "personal_app_client/ds_snapshot"
   autoload :TestSupport, "personal_app_client/test_support"
 
   module Mcp

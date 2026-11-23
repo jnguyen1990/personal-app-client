@@ -213,4 +213,21 @@ RSpec.describe "layouts/personal_app/shell" do
       expect(doc.at("#app-flash").text).to eq("mine")
     end
   end
+
+  describe "PWA and error hook tags" do
+    it "links the manifest with credentials and registers the worker" do
+      get_html "/"
+      expect(doc.at("link[rel=manifest]").to_h).to include("href" => "/manifest.json", "crossorigin" => "use-credentials")
+      expect(html).to include("navigator.serviceWorker.register('/service-worker.js')")
+    end
+
+    it "unregisters instead when the kill switch is set" do
+      PersonalAppClient.config.pwa.service_worker = :unregister
+      get_html "/"
+      expect(html).to include("getRegistrations()")
+      expect(html).not_to include(".register(")
+    ensure
+      PersonalAppClient.config.pwa.service_worker = true
+    end
+  end
 end

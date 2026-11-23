@@ -1,0 +1,17 @@
+<% app = PersonalAppClient.config -%>
+<%= raw JSON.pretty_generate(
+  id: "/",
+  name: app.app_name,
+  short_name: app.pwa.short_name.presence || app.app_name,
+  description: app.pwa.description.presence || app.app_name,
+  start_url: "/",
+  scope: "/",
+  display: "standalone",
+  theme_color: app.pwa.theme_colors[:light] || app.pwa.theme_colors["light"],
+  background_color: app.pwa.theme_colors[:light] || app.pwa.theme_colors["light"],
+  icons: [
+    { src: "/icon.png", type: "image/png", sizes: "512x512" },
+    { src: "/icon.png", type: "image/png", sizes: "512x512", purpose: "maskable" },
+    { src: "/icon.svg", type: "image/svg+xml", sizes: "any" }
+  ]
+) %>
