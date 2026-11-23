@@ -29,8 +29,9 @@ module PersonalAppClient
     DS_FILES = %w[design-system.css shared-core.js modal-keys.js apps-launcher.js
                   session-render.js goal-render.js].freeze
 
-    # Page background (--bg) in each theme: slate-2 light, slate-1 dark.
-    DEFAULT_THEME_COLORS = { light: "#f9f9fb", dark: "#111113" }.freeze
+    # Page background (--sheet) in each theme since the flat v4.4 surface
+    # model: white light, slate-1 dark.
+    DEFAULT_THEME_COLORS = { light: "#ffffff", dark: "#111113" }.freeze
 
     # --- identity --------------------------------------------------------
     attr_writer :app_id, :app_name
@@ -52,6 +53,12 @@ module PersonalAppClient
     attr_accessor :subtitle_tag
     # Emit `installNavHotkeys({ allowComma: true })` before :extra_js.
     attr_accessor :nav_hotkeys
+    # The mobile tab bar (design system v4.4): below 768px the shell renders
+    # `tab_count` nav items as a floating tab bar plus a "More" bottom sheet
+    # holding the rest and the app dock. false keeps the hamburger + drawer.
+    # Pick the tabs with `tab: true` on nav_items (default: the first four).
+    attr_accessor :tab_bar
+    attr_accessor :tab_count
     # Fall back to /ds/<file> (a snapshot from `personal_app:ds:snapshot`)
     # when the design-system CDN fails. Only emitted when the snapshot exists.
     attr_accessor :ds_fallback
@@ -90,6 +97,8 @@ module PersonalAppClient
       @header_style = :inline
       @subtitle_tag = :p
       @nav_hotkeys = true
+      @tab_bar = true
+      @tab_count = 4
       @ds_fallback = true
       @api_base_controller = "Api::BaseController"
       @mcp_tool_registry = "Mcp::ToolRegistry"

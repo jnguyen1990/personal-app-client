@@ -19,6 +19,12 @@ module PersonalAppClient
       PersonalAppClient::Nav.items(specs, request.path)
     end
 
+    # The mobile tab bar's items (Nav.tabs), or [] when config.tab_bar is off.
+    def personal_app_tab_items(items = personal_app_nav_items)
+      return [] unless personal_app_config.tab_bar
+      PersonalAppClient::Nav.tabs(items, personal_app_config.tab_count.to_i.clamp(1, 5))
+    end
+
     def personal_app_ds_url(file)
       "#{personal_app_config.ds_base}/#{file}"
     end

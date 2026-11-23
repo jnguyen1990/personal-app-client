@@ -4,7 +4,7 @@ RSpec.describe "PWA" do
     expect(last_response.status).to eq(200)
     expect(last_response.headers["Content-Type"]).to start_with("application/manifest+json")
     expect(json).to include("name" => "Dummy", "short_name" => "Dummy", "start_url" => "/", "scope" => "/",
-                            "display" => "standalone", "theme_color" => "#f9f9fb")
+                            "display" => "standalone", "theme_color" => "#ffffff")
     expect(json["icons"].map { |i| i["src"] }).to eq(%w[/icon.png /icon.png /icon.svg])
   end
 

@@ -41,4 +41,27 @@ RSpec.describe PersonalAppClient::Nav do
     expect(items.map { |i| [ i.label, i.kbd, i.active? ] }).to eq([ [ "today", "⌘1", true ], [ "settings", "⌘,", false ],
                                                                    [ "no key", nil, false ] ])
   end
+
+  describe ".tabs" do
+    let(:items) { (1..6).map { |n| described_class.item({ path: "/#{n}", label: n.to_s }, "/1") } }
+
+    it "takes the first four by default" do
+      expect(described_class.tabs(items).map(&:path)).to eq(%w[/1 /2 /3 /4])
+    end
+
+    it "prefers the items marked tab: true" do
+      marked = [ { path: "/a", tab: true }, { path: "/b" }, { path: "/c", tab: true } ].map { |s| described_class.item(s, "/") }
+      expect(described_class.tabs(marked).map(&:path)).to eq(%w[/a /c])
+    end
+
+    it "leaves tab: false out of the default pick and caps at count" do
+      specs = [ { path: "/a", tab: false }, { path: "/b" }, { path: "/c" }, { path: "/d" } ]
+      expect(described_class.tabs(specs.map { |s| described_class.item(s, "/") }, 2).map(&:path)).to eq(%w[/b /c])
+    end
+
+    it "records tab as true, false or nil" do
+      expect([ { path: "/", tab: true }, { path: "/", tab: false }, { path: "/" } ].map { |s| described_class.item(s, "/").tab })
+        .to eq([ true, false, nil ])
+    end
+  end
 end

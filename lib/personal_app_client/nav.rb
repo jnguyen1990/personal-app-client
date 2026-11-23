@@ -9,8 +9,12 @@ module PersonalAppClient
   #     { path: "/",      label: "today", ico: "star",   key: "1", prefixes: %w[/plan] }   # "/" or /plan…
   #     { path: "/x",     label: "x",     ico: "grid",   key: "3", active: %r{\A/x(/|\z)} }
   #     { path: "/y",     label: "y",     ico: "grid",   key: "4", active: ->(path) { … } }
+  #
+  # `tab:` picks the mobile tab bar's items (see .tabs): `tab: true` on the
+  # ones that should be tabs, `tab: false` to keep one out of the default
+  # first four.
   module Nav
-    Item = Struct.new(:path, :label, :ico, :key, :active, keyword_init: true) do
+    Item = Struct.new(:path, :label, :ico, :key, :active, :tab, keyword_init: true) do
       def active?
         active ? true : false
       end
@@ -27,11 +31,21 @@ module PersonalAppClient
       Array(specs).map { |spec| item(spec, request_path) }
     end
 
+    # The mobile tab bar's items: the ones marked `tab: true` when any is,
+    # otherwise the first `count` that are not `tab: false`. At most `count`
+    # either way (the bar has room for four plus "More").
+    def tabs(items, count = 4)
+      items = Array(items)
+      marked = items.select { |i| i.tab == true }
+      (marked.any? ? marked : items.reject { |i| i.tab == false }).first(count)
+    end
+
     def item(spec, request_path)
       spec = spec.to_h.transform_keys(&:to_sym)
       path = spec.fetch(:path).to_s
       Item.new(path: path, label: spec[:label].to_s, ico: spec[:ico].to_s,
-               key: spec[:key]&.to_s, active: active?(spec, path, request_path.to_s))
+               key: spec[:key]&.to_s, active: active?(spec, path, request_path.to_s),
+               tab: spec.key?(:tab) ? (spec[:tab] ? true : false) : nil)
     end
 
     def active?(spec, path, request_path)

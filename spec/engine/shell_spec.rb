@@ -40,17 +40,17 @@ RSpec.describe "layouts/personal_app/shell" do
       expect(button["class"]).to eq("mobile-menu-toggle")
     end
 
-    it "leaves aria-current to shared-core (it sets it on .nav-link.active)" do
-      expect(doc.css(".nav-link.active").map { |a| a["href"] }).to eq([ "/" ])
-      expect(doc.css("[aria-current]")).to be_empty
+    it "leaves the sidebar's aria-current to shared-core (it sets it on .nav-link.active)" do
+      expect(doc.css(".sidebar .nav-link.active").map { |a| a["href"] }).to eq([ "/" ])
+      expect(doc.css(".sidebar [aria-current]")).to be_empty
     end
 
     it "sets theme-color per scheme, then pins it to the app's theme" do
       expect(doc.css("meta[name=theme-color]").map { |m| [ m["media"], m["content"] ] }).to eq([
-        [ "(prefers-color-scheme: light)", "#f9f9fb" ], [ "(prefers-color-scheme: dark)", "#111113" ]
+        [ "(prefers-color-scheme: light)", "#ffffff" ], [ "(prefers-color-scheme: dark)", "#111113" ]
       ])
       pin = doc.css("head script").map(&:text).find { |t| t.include?("ds:themechange") }
-      expect(pin).to include(%({"light":"#f9f9fb","dark":"#111113"}))
+      expect(pin).to include(%({"light":"#ffffff","dark":"#111113"}))
     end
 
     it "allows the safe-area insets the design system uses" do
@@ -77,6 +77,72 @@ RSpec.describe "layouts/personal_app/shell" do
         get_html "/settings"
       end
       expect(doc.css(".nav-link.active").map(&:text).map(&:strip).first).to start_with("here")
+    end
+  end
+
+  describe "mobile tab bar" do
+    let(:five) do
+      [ { path: "/",         label: "today",    ico: "star",     key: "1" },
+        { path: "/goals",    label: "goals",    ico: "target",   key: "2", active: :prefix },
+        { path: "/plan",     label: "plan",     ico: "calendar", key: "3" },
+        { path: "/archive",  label: "archive",  ico: "archive",  key: "4" },
+        { path: "/settings", label: "settings", ico: "sliders",  key: "," } ]
+    end
+
+    def tabs = doc.css("body > nav.tab-bar > a.tab-bar-item")
+    def sheet_links = doc.css("#more-sheet .nav-menu .nav-link").map { |a| a["href"] }
+
+    it "renders the first four items as tabs plus More, after main, with the rest in the sheet" do
+      with_config(nav_items: five) { get_html "/goals/3" }
+      expect(tabs.map { |a| a["href"] }).to eq(%w[/ /goals /plan /archive])
+      expect(tabs.map { |a| a.at(".tab-bar-label").text }).to eq(%w[today goals plan archive])
+      expect(tabs.map { |a| a.at(".nav-ico")["data-ico"] }).to eq(%w[star target calendar archive])
+      active = doc.css(".tab-bar-item.active")
+      expect(active.map { |a| [ a["href"], a["aria-current"] ] }).to eq([ [ "/goals", "page" ] ])
+      expect(doc.at("main").next_element["class"]).to eq("tab-bar")
+      expect(sheet_links).to eq(%w[/settings])
+    end
+
+    it "wires More to the sheet for shared-core (toggle, dialog, dock slot)" do
+      get_html "/"
+      more = doc.at(".tab-bar > button.tab-bar-item")
+      expect(more.to_h).to include("type" => "button", "data-sheet-toggle" => "", "aria-controls" => "more-sheet",
+                                   "aria-expanded" => "false", "aria-haspopup" => "dialog")
+      expect(more.at(".tab-bar-label").text).to eq("More")
+      sheet = doc.at("#more-sheet")
+      expect(sheet.to_h).to include("class" => "sheet", "role" => "dialog", "aria-modal" => "true", "aria-label" => "More", "hidden" => "")
+      expect(sheet.previous_element.to_h).to include("class" => "sheet-scrim", "hidden" => "")
+      expect(sheet.at(".sheet-dock")).not_to be_nil
+    end
+
+    it "shows every item as a tab when there are four or fewer, and leaves the sheet list out" do
+      get_html "/"
+      expect(tabs.map { |a| a["href"] }).to eq(%w[/ /goals /settings])
+      expect(doc.at("#more-sheet .nav-menu")).to be_nil
+    end
+
+    it "takes the tab: true items when an app marks them" do
+      marked = five.each_with_index.map { |spec, i| [ 0, 2, 4 ].include?(i) ? spec.merge(tab: true) : spec }
+      with_config(nav_items: marked) { get_html "/" }
+      expect(tabs.map { |a| a["href"] }).to eq(%w[/ /plan /settings])
+      expect(sheet_links).to eq(%w[/goals /archive])
+    end
+
+    it "skips tab: false items in the default pick" do
+      with_config(nav_items: five.each_with_index.map { |s, i| i == 1 ? s.merge(tab: false) : s }) { get_html "/" }
+      expect(tabs.map { |a| a["href"] }).to eq(%w[/ /plan /archive /settings])
+    end
+
+    it "honours tab_count" do
+      with_config(nav_items: five, tab_count: 3) { get_html "/" }
+      expect(tabs.size).to eq(3)
+    end
+
+    it "can be switched off (hamburger + drawer only)" do
+      with_config(tab_bar: false) { get_html "/" }
+      expect(doc.at(".tab-bar")).to be_nil
+      expect(doc.at("#more-sheet")).to be_nil
+      expect(doc.at("#mobileMenuBtn")).not_to be_nil
     end
   end
 

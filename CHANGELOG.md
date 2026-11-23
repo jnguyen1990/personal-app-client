@@ -41,6 +41,23 @@ renders the shell or the panes. Adoption guide: the README's
 - Development dependencies: railties, actionpack, actionview, rack-test.
   Runtime dependencies are unchanged; the engine needs Rails >= 7.1.
 
+### Shell: mobile tab bar and the flat design system (design system v4.4)
+
+- **Mobile tab bar.** The shell renders `personal_app/_tab_bar` after
+  `<main>`: a `.tab-bar` with the first four nav items (or the ones marked
+  `tab: true`; `tab: false` keeps one out) plus a "More" button that opens a
+  `.sheet` bottom sheet holding the other items and the app dock. Below
+  768px the design system shows it in place of the hamburger + drawer (the
+  hamburger markup stays for apps or pages without a tab bar). Tabs carry
+  `aria-current="page"`; shared-core.js handles the sheet's focus, Esc and
+  scrim. New config: `tab_bar` (default `true`), `tab_count` (default 4);
+  `Nav::Item#tab`, `Nav.tabs`, `personal_app_tab_items`. Needs the design
+  system with the tab bar (v4.4) live first.
+- `pwa.theme_colors` defaults to `#ffffff` light (the flat model's page
+  sheet), was `#f9f9fb`.
+- Backup pane: the restore modal's "Restoring <file>" line has spacing
+  above and below it.
+
 ### Added
 
 - `PersonalAppClient::Engine` (not isolated) with a Railtie: time zone, rate

@@ -48,6 +48,7 @@
             <%= yield %>
         </div>
     </main>
+    <%= render "personal_app/tab_bar" %>
     <%= yield :shell_body_end %>
     <% if app.nav_hotkeys %>
     <script>installNavHotkeys({ allowComma: true });  // ⌘1..9 + ⌘, (Ctrl never triggers)</script>

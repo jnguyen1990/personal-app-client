@@ -540,11 +540,13 @@ end
 | --- | --- | --- |
 | `app_id` | the Rails app's module name, underscored | `data-app`, `<title>` suffix, default `<h1>`, MCP server name, backup prefix |
 | `app_name` | `app_id.capitalize` | sidebar brand, PWA name |
-| `nav_items` | `[]` | sidebar items: `path`, `label`, `ico`, `key`, optional `active:` (`:exact` default, `:prefix`, Regexp, Proc of the path) and `prefixes:` (extra prefixes that also mark it active). Or a Proc returning the array, run in the view |
+| `nav_items` | `[]` | sidebar items: `path`, `label`, `ico`, `key`, optional `active:` (`:exact` default, `:prefix`, Regexp, Proc of the path) and `prefixes:` (extra prefixes that also mark it active), and `tab:` (`true` to pick it for the mobile tab bar, `false` to keep it out of the default first four). Or a Proc returning the array, run in the view |
 | `ds_scripts` | `[]` | extra design-system scripts between `shared-core.js` and `modal-keys.js` (base, fitness: `%w[session-render goal-render]`) |
 | `header_style` | `:inline` | `:inline` (title, badge, actions on one row; subtitle under it) or `:split` (title over subtitle on the left, actions right — base) |
 | `subtitle_tag` | `:p` | `:span` reproduces upkeep's and postings' subtitle |
 | `nav_hotkeys` | `true` | emit `installNavHotkeys({ allowComma: true })` before `:extra_js` |
+| `tab_bar` | `true` | below 768px (design system v4.4) render the nav as a floating tab bar plus a "More" bottom sheet (the other items and the app dock) instead of the hamburger + drawer. `false` keeps the hamburger |
+| `tab_count` | `4` | how many tabs (1–5) beside "More": the `tab: true` items when any are marked, else the first `tab_count` not marked `tab: false` |
 | `ds_base` | `ENV["DS_BASE"]`, else `https://design-system.joenguyen.ca` | where the design system is loaded from (String or Proc) |
 | `ds_fallback` | `true` | when `public/ds/` exists, every design-system tag falls back to it if the CDN fails |
 | `api_base_controller` | `"Api::BaseController"` | parent of the default MCP / backup / health / client-error controllers (falls back to `PersonalAppClient::ApiController` when the app has none) |
@@ -555,7 +557,7 @@ end
 | `rate_limit` | `{}` | `RateLimit.install!` options (`limit:`, `period:`, …), or `false` to leave it to the app |
 | `rate_limit_rules` | `nil` | Proc receiving `Rack::Attack` for app throttles |
 | `pwa.service_worker` | production only | `true`, `false`, or `:unregister` (kill switch: serves a self-removing worker and unregisters from the page) |
-| `pwa.theme_colors` | `{ light: "#f9f9fb", dark: "#111113" }` | `<meta name="theme-color">` per scheme (the page `--bg`); light is the manifest colour |
+| `pwa.theme_colors` | `{ light: "#ffffff", dark: "#111113" }` | `<meta name="theme-color">` per scheme (the page `--sheet` of the flat v4.4 surface model); light is the manifest colour |
 | `pwa.short_name`, `pwa.description` | `app_name` | manifest fields |
 | `pwa.cache_origins` | Google Fonts, jsDelivr, unpkg | origins the worker serves stale-while-revalidate (the design-system origin is always added) |
 | `error_reporting.enabled` | production only | subscribe the reporter (below) |

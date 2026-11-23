@@ -1,0 +1,27 @@
+<%#
+  Mobile tab bar + "More" sheet (design system v4.4). Below 768px the design
+  system shows this in place of the hamburger + drawer; on desktop it is
+  hidden. Tabs: the nav items marked `tab: true`, else the first
+  config.tab_count (4). The sheet holds the other items and the app dock
+  (apps-launcher.js fills .sheet-dock); shared-core.js opens and closes it.
+%><% items = personal_app_nav_items %><% tabs = personal_app_tab_items(items) %><% if tabs.any? %>
+    <nav class="tab-bar" aria-label="Tabs">
+        <% tabs.each do |item| %>
+        <a href="<%= item.path %>" class="tab-bar-item<%= ' active' if item.active? %>"<%= ' aria-current="page"'.html_safe if item.active? %>><span class="tab-bar-ico"><span class="nav-ico" data-ico="<%= item.ico %>"></span></span><span class="tab-bar-label"><%= item.label %></span></a>
+        <% end %>
+        <button type="button" class="tab-bar-item" data-sheet-toggle aria-controls="more-sheet" aria-expanded="false" aria-haspopup="dialog"><span class="tab-bar-ico"><span class="nav-ico" data-ico="more"></span></span><span class="tab-bar-label">More</span></button>
+    </nav>
+    <div class="sheet-scrim" hidden></div>
+    <div class="sheet" id="more-sheet" role="dialog" aria-modal="true" aria-label="More" hidden>
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <% rest = items - tabs %><% if rest.any? %>
+        <ul class="nav-menu">
+            <% rest.each do |item| %>
+            <li><a href="<%= item.path %>" class="nav-link<%= ' active' if item.active? %>"<%= ' aria-current="page"'.html_safe if item.active? %>><span class="nav-ico" data-ico="<%= item.ico %>"></span><%= item.label %></a></li>
+            <% end %>
+        </ul>
+        <% end %>
+        <div class="sheet-sec">Apps</div>
+        <div class="sheet-dock"></div><%# apps-launcher.js renders the app dock + theme toggle here %>
+    </div>
+<% end %>
