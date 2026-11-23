@@ -29,6 +29,11 @@ RSpec.describe PersonalAppClient::Engine do
     expect(PersonalAppClient::TestSupport).to be_a(Module)
   end
 
+  it "adds the shell helper to every view" do
+    expect(ApplicationController.helpers).to respond_to(:personal_app_nav_items)
+    expect(ActionController::Base.helpers).to respond_to(:personal_app_title)
+  end
+
   it "eager-loads cleanly (production boot)" do
     expect { Rails.autoloaders.each(&:eager_load) }.not_to raise_error
     expect(PersonalAppClient::BackupsController.sqlite_backup_options).to include(prefix: "dummy", extra_files: %w[README.md])

@@ -14,6 +14,7 @@ module PersonalAppClient
   # requires keep working.
   autoload :CloudflareAccess, "personal_app_client/cloudflare_access"
   autoload :JwksCache, "personal_app_client/jwks_cache"
+  autoload :Nav, "personal_app_client/nav"
   autoload :RateLimit, "personal_app_client/rate_limit"
   autoload :Routes, "personal_app_client/routes"
   autoload :TestSupport, "personal_app_client/test_support"

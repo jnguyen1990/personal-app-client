@@ -1,0 +1,5 @@
+<% if flash.any? %>
+          <% flash.each do |kind, msg| %>
+            <div class="status-message status-<%= kind == 'alert' ? 'error' : 'success' %>"><%= msg %></div>
+          <% end %>
+        <% end %>

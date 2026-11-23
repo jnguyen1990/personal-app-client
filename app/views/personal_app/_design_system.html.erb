@@ -1,0 +1,23 @@
+<%# Design-system CSS and JS from config.ds_base (ENV["DS_BASE"] in dev). When
+    `personal_app:ds:snapshot` has written public/ds/, each tag falls back to
+    that local copy if the CDN fails. -%>
+<% fallback = personal_app_ds_fallback? -%>
+    <link rel="preload" href="<%= personal_app_ds_url("fonts/inter-latin-wght.woff2") %>" as="font" type="font/woff2" crossorigin>
+<% if fallback -%>
+    <link rel="stylesheet" href="<%= personal_app_ds_url("design-system.css") %>" onerror="<%= personal_app_ds_css_onerror %>">
+<% else -%>
+    <link rel="stylesheet" href="<%= personal_app_ds_url("design-system.css") %>">
+<% end -%>
+<% personal_app_config.ds_sync_scripts.each do |name| -%>
+    <script src="<%= personal_app_ds_url("#{name}.js") %>"></script>
+<% end -%>
+<% if fallback -%>
+    <%= personal_app_ds_sync_fallback_script %>
+<% end -%>
+<% personal_app_config.ds_deferred_scripts.each do |name| -%>
+<% if fallback -%>
+    <script src="<%= personal_app_ds_url("#{name}.js") %>" defer onerror="<%= personal_app_ds_deferred_onerror("#{name}.js") %>"></script>
+<% else -%>
+    <script src="<%= personal_app_ds_url("#{name}.js") %>" defer></script>
+<% end -%>
+<% end -%>

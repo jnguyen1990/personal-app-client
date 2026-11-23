@@ -1,0 +1,35 @@
+<%# Two shapes, config.header_style:
+      :inline — crumb, then one row (title, badge, actions), then the subtitle
+      :split  — crumb, then [title + badge over subtitle] | actions (base) -%>
+<header class="page-header">
+            <% if content_for?(:page_crumb) %>
+                <div class="page-crumb"><%= content_for(:page_crumb) %></div>
+            <% end %>
+<% if personal_app_config.header_style.to_s == "split" -%>
+            <div>
+                <div>
+                    <div class="d-flex align-center gap-3">
+                        <h1 class="page-title"><%= content_for(:page_title) || personal_app_config.app_id %></h1>
+                        <%= content_for(:title_badge) if content_for?(:title_badge) %>
+                    </div>
+                    <% if content_for?(:page_subtitle) %>
+                        <%= personal_app_subtitle_tag(content_for(:page_subtitle)) %>
+                    <% end %>
+                </div>
+                <% if content_for?(:header_actions) %>
+                    <div class="header-actions"><%= content_for(:header_actions) %></div>
+                <% end %>
+            </div>
+<% else -%>
+            <div class="d-flex align-center gap-3">
+                <h1 class="page-title"><%= content_for(:page_title) || personal_app_config.app_id %></h1>
+                <%= content_for(:title_badge) if content_for?(:title_badge) %>
+                <% if content_for?(:header_actions) %>
+                    <div class="header-actions"><%= content_for(:header_actions) %></div>
+                <% end %>
+            </div>
+            <% if content_for?(:page_subtitle) %>
+                <%= personal_app_subtitle_tag(content_for(:page_subtitle)) %>
+            <% end %>
+<% end -%>
+        </header>

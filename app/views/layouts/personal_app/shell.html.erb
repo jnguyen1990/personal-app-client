@@ -1,0 +1,57 @@
+<%#
+  The shared app chrome (personal_app_client v0.8.0+). An app's
+  layouts/application.html.erb fills any content_for slots it needs and then
+  renders this template:  render template: "layouts/personal_app/shell"
+  (or sets  layout "personal_app/shell"  in ApplicationController).
+
+  Per-app shape comes from PersonalAppClient.config (nav_items, ds_scripts,
+  header_style, subtitle_tag, nav_hotkeys); per-app markup from these slots:
+
+      :head             end of head             (layout or page)
+      :shell_body_start before the sidebar      (base's shared detail modal)
+      :shell_body_end   after main, before the hotkey script and :extra_js
+                        (fitness's modal, window.PROFILE, fitness-core.js)
+      :extra_js         last thing in body      (pages)
+
+  plus the page slots every app already used: :page_title, :page_crumb,
+  :title_badge, :page_subtitle, :header_actions. Any partial rendered below
+  can be overridden by an app file at the same path under app/views/.
+%><% app = personal_app_config %><!DOCTYPE html>
+<html lang="en" data-app="<%= app.app_id %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title><%= personal_app_title %></title>
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= personal_app_error_hook_tag %>
+    <%= render "personal_app/design_system" %>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+    <%= personal_app_manifest_tag %>
+    <%= personal_app_theme_color_tags %>
+    <%= stylesheet_link_tag :app %>
+    <%= javascript_importmap_tags if respond_to?(:javascript_importmap_tags) %>
+    <%= personal_app_service_worker_tag %>
+    <%= yield :head %>
+</head>
+<body>
+    <a class="sr-only skip-link" href="#main">Skip to content</a>
+    <button type="button" class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Menu">&#9776;</button>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <%= yield :shell_body_start %>
+    <%= render "personal_app/sidebar" %>
+    <main class="main-content" id="main">
+        <%= render "personal_app/page_header" %>
+        <%= render "personal_app/flash" %>
+        <div class="content">
+            <%= yield %>
+        </div>
+    </main>
+    <%= yield :shell_body_end %>
+    <% if app.nav_hotkeys %>
+    <script>installNavHotkeys({ allowComma: true });  // ⌘1..9 + ⌘, (Ctrl never triggers)</script>
+    <% end %>
+    <%= yield :extra_js %>
+</body>
+</html>

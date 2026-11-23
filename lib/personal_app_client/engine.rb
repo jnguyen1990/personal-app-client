@@ -18,7 +18,8 @@ module PersonalAppClient
   #   * concerns — every PersonalAppClient::Rails::* concern, Mcp::BaseTool,
   #     Mcp::Registry, RateLimit and TestSupport autoload on first reference,
   #     so the apps' `require "personal_app_client/…"` lines can go;
-  #   * routes — the `personal_app_routes` macro in config/routes.rb.
+  #   * routes — the `personal_app_routes` macro in config/routes.rb;
+  #   * helpers — ShellHelper in every ActionController::Base view.
   class Engine < ::Rails::Engine
     engine_name "personal_app_client"
 
@@ -29,6 +30,12 @@ module PersonalAppClient
     # Routes are drawn after every initializer, so the macro is in place first.
     initializer "personal_app_client.routes" do
       ActionDispatch::Routing::Mapper.include(PersonalAppClient::Routes)
+    end
+
+    initializer "personal_app_client.helpers" do
+      ActiveSupport.on_load(:action_controller_base) do
+        helper PersonalAppClient::ShellHelper
+      end
     end
 
     initializer "personal_app_client.rate_limit", after: :load_config_initializers do |app|

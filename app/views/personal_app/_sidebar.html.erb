@@ -1,0 +1,18 @@
+<nav class="sidebar" aria-label="Main">
+        <div class="sidebar-header">
+            <div class="brand-title"><span class="brand-logo"><img src="/icon.svg" alt=""></span><%= personal_app_config.app_name %></div>
+        </div>
+        <div class="nav-section">
+            <ul class="nav-menu">
+                <% personal_app_nav_items.each do |item| %>
+                    <li>
+                        <a href="<%= item.path %>" class="nav-link <%= 'active' if item.active? %>" data-nav-key="<%= item.key %>">
+                            <span class="nav-ico" data-ico="<%= item.ico %>"></span><%= item.label %>
+                            <% if item.kbd %><kbd class="kbd nav-kbd"><%= item.kbd %></kbd><% end %>
+                        </a>
+                    </li>
+                <% end %>
+            </ul>
+        </div>
+        <div class="sidebar-footer"></div><%# apps-launcher.js renders the app dock + theme toggle here %>
+    </nav>
