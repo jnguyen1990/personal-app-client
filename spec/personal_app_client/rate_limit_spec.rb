@@ -86,6 +86,11 @@ RSpec.describe PersonalAppClient::RateLimit do
   end
 
   describe "middleware insertion" do
+    # With railties in the bundle (the engine specs need it), requiring
+    # rack-attack defines its Railtie; these cases are about apps where it
+    # did not, so hide it.
+    before { hide_const("Rack::Attack::Railtie") if defined?(Rack::Attack::Railtie) }
+
     it "inserts Rack::Attack once, however often install! runs" do
       3.times { described_class.install!(app: fake_app) }
       expect(fake_app.config.middleware.used).to eq([ Rack::Attack ])
@@ -103,6 +108,13 @@ RSpec.describe PersonalAppClient::RateLimit do
       allow(Rails).to receive(:application).and_return(fake_app)
       described_class.install!
       expect(fake_app.config.middleware.used).to eq([ Rack::Attack ])
+    end
+
+    it "records that it ran, for the engine's railtie" do
+      described_class.instance_variable_set(:@install_called, nil)
+      expect(described_class.installed?).to be(false)
+      described_class.install!(app: fake_app)
+      expect(described_class.installed?).to be(true)
     end
 
     it "is safe without a Rails application" do

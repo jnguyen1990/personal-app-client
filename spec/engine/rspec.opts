@@ -1,0 +1,4 @@
+--require engine/engine_helper
+--pattern spec/engine/**/*_spec.rb
+--format documentation
+--color

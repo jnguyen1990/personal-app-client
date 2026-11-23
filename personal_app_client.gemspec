@@ -6,18 +6,20 @@ Gem::Specification.new do |spec|
   spec.authors     = ["Joe Nguyen"]
   spec.email       = ["joeanguyen1990@gmail.com"]
 
-  spec.summary     = "Shared HTTP client for Joe's personal apps."
+  spec.summary     = "Shared platform for Joe's personal apps: inter-app client, Rails concerns and engine."
   spec.description = "Inter-app HTTP client with loud failures, public-domain guard, " \
-                     "and shared-secret auth, plus the Rails concerns the apps share " \
-                     "(auth, MCP dispatch, SQLite backup/restore, health, rate limiting). " \
-                     "Used by base, budgeter, fitness, mealplanner, postings, and upkeep."
+                     "and shared-secret auth; the Rails concerns the apps share " \
+                     "(auth, MCP dispatch, SQLite backup/restore, health, rate limiting); " \
+                     "and, inside a Rails app, an engine with the platform routes, default " \
+                     "controllers, the shared layout shell, settings panes, PWA and error " \
+                     "reporting. Used by base, budgeter, fitness, mealplanner, postings, and upkeep."
   spec.homepage    = "https://github.com/jnguyen1990/personal-app-client"
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["source_code_uri"] = spec.homepage
 
-  spec.files = Dir["lib/**/*", "README.md", "CHANGELOG.md", "LICENSE.txt"]
+  spec.files = Dir["lib/**/*", "app/**/*", "README.md", "CHANGELOG.md", "LICENSE.txt"]
   spec.require_paths = ["lib"]
 
   spec.add_dependency "activesupport", ">= 7.0"
@@ -37,4 +39,12 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rubyzip", ">= 2.3"
   # For JobStatusReporting specs.
   spec.add_development_dependency "activejob", ">= 7.0"
+  # For the engine specs (spec/engine, against the dummy app in spec/dummy).
+  # The engine itself needs Rails >= 7.1 (strict-locals partials,
+  # Rails.error, ActiveSupport::ExecutionContext); it loads only when
+  # Rails::Engine is defined, so the plain-Ruby core has no Rails dependency.
+  spec.add_development_dependency "railties", ">= 7.1"
+  spec.add_development_dependency "actionpack", ">= 7.1"
+  spec.add_development_dependency "actionview", ">= 7.1"
+  spec.add_development_dependency "rack-test", ">= 2.1"
 end

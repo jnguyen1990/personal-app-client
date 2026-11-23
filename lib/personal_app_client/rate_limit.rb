@@ -19,6 +19,9 @@ module PersonalAppClient
   # api_throttle: false drops it (block rules only); app: is the Rails
   # application (default Rails.application).
   #
+  # Apps on the engine (v0.8.0+) get this call from the Railtie, configured by
+  # `config.rate_limit` / `config.rate_limit_rules`; see Engine.
+  #
   # Safe to call more than once: rules are re-registered under the same
   # names and the middleware is inserted a single time. When rack-attack was
   # already loaded with Rails (it is in the app's Gemfile), its own railtie
@@ -49,7 +52,15 @@ module PersonalAppClient
         yield ::Rack::Attack if block_given?
 
         insert_middleware(app, railtie_loaded)
+        @install_called = true
         ::Rack::Attack
+      end
+
+      # True once install! has run in this process — the engine checks it so
+      # an app that still calls install! from its own initializer (with its
+      # own limit) is not overridden by the engine's default call.
+      def installed?
+        @install_called ? true : false
       end
 
       # 429 with the period of the rule that tripped as Retry-After.

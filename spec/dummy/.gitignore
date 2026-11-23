@@ -1,0 +1,4 @@
+/tmp/*
+/log/
+/public/ds/
+!/tmp/.keep

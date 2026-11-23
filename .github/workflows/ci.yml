@@ -10,8 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Tags too: the engine specs run the v0.7.0 code from its tag to
+          # prove v0.8.0 still interoperates with it (skipped without it).
+          fetch-depth: 0
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
-      - run: bundle exec rspec
+      - run: bundle exec rake
