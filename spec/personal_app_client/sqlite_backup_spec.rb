@@ -331,7 +331,7 @@ RSpec.describe PersonalAppClient::Rails::SqliteBackup do
       expect(controller.rendered[:json]).to eq(error: "Backup file not found")
     end
 
-    it "restores rows, sequences, extra files and storage files from the backup" do
+    it "restores rows, sequences and storage files from the backup" do
       backup_name = "testapp_backup_20200101_000000.zip"
       restorer = create_named_backup(backup_name)
 
@@ -359,7 +359,8 @@ RSpec.describe PersonalAppClient::Rails::SqliteBackup do
       seq = conn.select_value("SELECT seq FROM sqlite_sequence WHERE name = 'parents'")
       expect(seq).to eq(2)
 
-      expect(File.read(root.join("NOTES.md"))).to eq("original notes")
+      # extra_files are repo files: in the ZIP for reference, never written back.
+      expect(File.read(root.join("NOTES.md"))).to eq("mutated notes")
       expect(File.read(root.join("storage", "ab", "blob1"))).to eq("blob-one")
 
       expect(conn.select_value("PRAGMA foreign_keys")).to eq(1)
@@ -416,6 +417,63 @@ RSpec.describe PersonalAppClient::Rails::SqliteBackup do
 
       expect(aborter.rendered[:status]).to eq(422)
       expect(aborter.rendered[:json]).to eq(error: "Invalid database: missing expected tables")
+    end
+  end
+
+  describe "restoring an untrusted ZIP" do
+    let(:outside) { root.join("..", "pac-escape-#{Process.pid}.txt").expand_path }
+    after { FileUtils.rm_f(outside) }
+
+    # A ZIP shaped like one create_backup writes, plus hostile entries.
+    def crafted_zip(name, entries)
+      db_copy = tmp_dir.join("crafted.sqlite3").to_s
+      FileUtils.cp(db_path, db_copy)
+      Zip::OutputStream.open(tmp_dir.join(name).to_s) do |out|
+        out.put_next_entry("testapp.db")
+        out.write(File.binread(db_copy))
+        entries.each do |entry_name, body|
+          out.put_next_entry(entry_name)
+          out.write(body)
+        end
+      end
+      FileUtils.rm_f(db_copy)
+      name
+    end
+
+    it "writes only storage files that resolve inside storage/, never the checkout" do
+      backup_name = crafted_zip("testapp_backup_20200101_000000.zip", [
+        [ "NOTES.md", "notes from the zip" ],
+        [ "storage_files/ok/new.txt", "fine" ],
+        [ "storage_files/../NOTES.md", "escaped via dot-dot" ],
+        [ "storage_files/x/../../../#{outside.basename}", "escaped further" ],
+        [ "storage_files/#{outside}", "absolute path" ],
+        [ "storage_files/app.sqlite3", "not a database" ],
+        [ "storage_files/sub/production.sqlite3-wal", "not a wal either" ]
+      ])
+
+      restorer = FakeBackupsController.new
+      restorer.params = { filename: backup_name }
+      restorer.restore
+
+      expect(restorer.rendered[:json]).to include(success: true)
+      expect(File.read(root.join("storage", "ok", "new.txt"))).to eq("fine")
+      expect(File.read(root.join("NOTES.md"))).to eq("original notes")
+      expect(File.exist?(outside)).to be(false)
+      expect(File.exist?(root.join("storage", "app.sqlite3"))).to be(false)
+      expect(File.exist?(root.join("storage", "sub", "production.sqlite3-wal"))).to be(false)
+      expect(Dir.glob(root.join("storage", "**", "*").to_s).map { |f| f.sub("#{root}/storage/", "") })
+        .to contain_exactly("ab", "ab/blob1", "ok", "ok/new.txt")
+    end
+
+    it "checks entry names the same way for an uploaded ZIP" do
+      upload = crafted_zip("upload.zip", [ [ "storage_files/../NOTES.md", "escaped" ], [ "README.md", "zip readme" ] ])
+      restorer = FakeBackupsController.new
+      restorer.params = { file: Struct.new(:original_filename, :tempfile).new("upload.zip", File.open(tmp_dir.join(upload))) }
+      restorer.restore_upload
+
+      expect(restorer.rendered[:json]).to include(success: true)
+      expect(File.read(root.join("NOTES.md"))).to eq("original notes")
+      expect(File.exist?(root.join("README.md"))).to be(false)
     end
   end
 

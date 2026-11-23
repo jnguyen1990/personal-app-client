@@ -403,6 +403,13 @@ for bespoke mapping.
 Other options: `keep`, `db_entry_name`, `wal_checkpoint` (default `true`),
 `list_include_size`, `source_db_path`.
 
+What a restore writes (v0.8.0): the database, and with `include_storage` the
+`storage_files/` entries — only regular files whose path resolves inside
+`storage/` (no absolute names, no `..`, no symlinks, never a `.sqlite3` file);
+unsafe entries are skipped and logged. `extra_files` (CLAUDE.md, README.md)
+are zipped for reference and **not** written back — they are tracked repo
+files. An uploaded ZIP gets the same checks.
+
 The concern includes [`OperatorAuth`](#operatorauth): **in production every
 backup action needs `X-App-Auth` or a Cloudflare Access JWT.**
 

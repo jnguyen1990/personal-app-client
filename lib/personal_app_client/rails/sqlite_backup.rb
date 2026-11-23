@@ -39,8 +39,14 @@ module PersonalAppClient
     #                        staging copies — mini's backup-pull.sh pulls each
     #                        one, verifies integrity_check, and keeps 14 locally
     #   db_entry_name        ZIP entry name for the db (default "<prefix>.db")
-    #   extra_files          repo-relative files added to (and restored from) the ZIP
-    #   include_storage      include/restore ActiveStorage files under storage/
+    #   extra_files          repo-relative files added to the ZIP for reference
+    #                        (CLAUDE.md, README.md). Never written back on
+    #                        restore: they are tracked repo files, and a restore
+    #                        must not rewrite the checkout (v0.8.0)
+    #   include_storage      include/restore files under storage/ (the restore
+    #                        writes only regular-file entries that resolve inside
+    #                        storage/, never a .sqlite3 file — see
+    #                        restore_storage_files)
     #   wal_checkpoint       run PRAGMA wal_checkpoint(TRUNCATE) before zipping
     #                        (default true — without it a WAL-mode db file can
     #                        be missing its most recent writes)
@@ -226,14 +232,14 @@ module PersonalAppClient
         checkpoint_wal! if backup_option(:wal_checkpoint)
         write_backup_zip(safety_path, db_path: resolved_db_path)
 
-        # Extract the db (and extra files) from the ZIP
+        # Extract the db from the ZIP. Nothing else is written from it here:
+        # extra_files ride along for reference only (restoring them used to
+        # overwrite the app's own CLAUDE.md / README.md with old copies), and
+        # storage files go through restore_storage_files' path checks.
         temp_db_path = ::Rails.root.join("tmp", "restore_#{SecureRandom.hex(8)}.sqlite3").to_s
         begin
           Zip::File.open(zip_path.to_s) do |z|
             File.binwrite(temp_db_path, z.read(db_entry))
-            backup_option(:extra_files).each do |f|
-              File.binwrite(::Rails.root.join(f).to_s, z.read(f)) if z.find_entry(f)
-            end
           end
 
           restore_database(temp_db_path, zip_path)
@@ -347,21 +353,48 @@ module PersonalAppClient
         ).to_i > 0
       end
 
-      # Restore ActiveStorage blob files.
+      # Restore the files under storage/ (ActiveStorage blobs, recipe images).
+      # The ZIP may be an upload, so every entry name is untrusted: only
+      # regular-file entries under storage_files/ whose path resolves inside
+      # storage/ are written — no absolute names, no "..", no symlinks — and
+      # never a .sqlite3 file (the live databases sit in storage/, and
+      # create_backup never zips them). Anything else is skipped and logged.
       # Note: don't use Zip::Entry#extract here — rubyzip prepends Dir.pwd even
       # to absolute destination paths, producing a doubled path. Read + binwrite
       # instead, matching the pattern used for the db file above.
       def restore_storage_files(zip_path)
+        storage_root = File.expand_path(::Rails.root.join("storage").to_s)
         Zip::File.open(zip_path.to_s) do |z|
           z.each do |entry|
             next unless entry.name.start_with?("storage_files/")
-            relative = entry.name.sub("storage_files/", "")
-            next if relative.empty?
-            dest = ::Rails.root.join("storage", relative)
+            dest = storage_restore_path(entry, storage_root)
+            unless dest
+              log_skipped_entry(entry.name)
+              next
+            end
             FileUtils.mkdir_p(File.dirname(dest))
-            File.binwrite(dest.to_s, z.read(entry.name))
+            File.binwrite(dest, z.read(entry.name))
           end
         end
+      end
+
+      # Where a storage_files/ entry may be written, or nil to skip it.
+      def storage_restore_path(entry, storage_root)
+        return nil unless entry.file?
+
+        relative = entry.name.delete_prefix("storage_files/")
+        return nil if relative.empty? || relative.start_with?("/", "~") || relative.include?("\\")
+        return nil if relative.match?(/\A[a-z]:/i)
+        return nil if relative.split("/").any? { |part| part == ".." }
+        return nil if File.basename(relative).match?(/\.sqlite3/)
+
+        dest = File.expand_path(relative, storage_root)
+        dest.start_with?(storage_root + File::SEPARATOR) ? dest : nil
+      end
+
+      def log_skipped_entry(name)
+        logger = ::Rails.respond_to?(:logger) ? ::Rails.logger : nil
+        logger&.warn("[SqliteBackup] restore skipped unsafe ZIP entry #{name.inspect}")
       end
 
       def write_backup_zip(zip_out_path, db_path:)

@@ -27,6 +27,13 @@ renders the shell or the panes. Adoption guide: the README's
     `config.error_reporting.enabled = false`.
   - `McpDispatch` reports a crashing tool to `Rails.error` (it still answers
     with the JSON-RPC -32603 error).
+- **`SqliteBackup` restore writes only what it owns.** `extra_files`
+  (CLAUDE.md, README.md) are no longer written back from the ZIP — a restore
+  used to overwrite the app's checked-out copies with old ones. With
+  `include_storage`, `storage_files/` entries are written only when they are
+  regular files resolving inside `storage/`: absolute names, `..` traversal,
+  symlinks and `.sqlite3` files (the live databases live in `storage/`) are
+  skipped and logged. Matters most for `restore_upload`, which takes any ZIP.
 - `SqliteBackup` never writes into an existing ZIP: a second backup in the
   same second (including the safety backup of a restore run right after a
   create — previously written into the ZIP being restored) takes the next
