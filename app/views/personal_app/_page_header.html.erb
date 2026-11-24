@@ -1,5 +1,7 @@
 <%# Two shapes, config.header_style:
-      :inline — crumb, then one row (title, badge, actions), then the subtitle
+      :inline — crumb, then one row (title, badge, actions), then the subtitle.
+                A grid (.page-header-inline): on a phone the areas reorder to
+                title, subtitle, actions, so the actions wrap below both (PLAT-09).
       :split  — crumb, then [title + badge over subtitle] | actions (base) -%>
 <header class="page-header">
             <% if content_for?(:page_crumb) %>
@@ -21,15 +23,17 @@
                 <% end %>
             </div>
 <% else -%>
-            <div class="d-flex align-center gap-3">
-                <h1 class="page-title"><%= content_for(:page_title) || personal_app_config.app_id %></h1>
-                <%= content_for(:title_badge) if content_for?(:title_badge) %>
+            <div class="page-header-inline">
+                <div class="page-header-title d-flex align-center gap-3">
+                    <h1 class="page-title"><%= content_for(:page_title) || personal_app_config.app_id %></h1>
+                    <%= content_for(:title_badge) if content_for?(:title_badge) %>
+                </div>
                 <% if content_for?(:header_actions) %>
                     <div class="header-actions"><%= content_for(:header_actions) %></div>
                 <% end %>
+                <% if content_for?(:page_subtitle) %>
+                    <%= personal_app_subtitle_tag(content_for(:page_subtitle)) %>
+                <% end %>
             </div>
-            <% if content_for?(:page_subtitle) %>
-                <%= personal_app_subtitle_tag(content_for(:page_subtitle)) %>
-            <% end %>
 <% end -%>
         </header>

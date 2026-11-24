@@ -232,13 +232,12 @@ RSpec.describe "layouts/personal_app/shell" do
   end
 
   describe "header" do
-    it "puts title, badge and actions on one row with the subtitle under it (inline)" do
+    it "puts title + badge, actions and the subtitle in one inline grid (inline; PLAT-09)" do
       get_html "/"
-      header = doc.at("header.page-header")
-      row = header.element_children.first
-      expect(row["class"]).to eq("d-flex align-center gap-3")
-      expect(row.element_children.map(&:name)).to eq(%w[h1 div])
-      expect(header.at("> p.page-subtitle").text).to eq("monday · 23 nov")
+      grid = doc.at("header.page-header > div.page-header-inline")
+      expect(grid.element_children.map { |c| c["class"] }).to eq([ "page-header-title d-flex align-center gap-3", "header-actions", "page-subtitle" ])
+      expect(grid.at("> div.page-header-title > h1").text).to eq("today")
+      expect(grid.at("> p.page-subtitle").text).to eq("monday · 23 nov")
     end
 
     it "stacks title over subtitle with actions to the right (split, base)" do
@@ -252,7 +251,7 @@ RSpec.describe "layouts/personal_app/shell" do
 
     it "renders the subtitle as a span when configured (upkeep)" do
       with_config(subtitle_tag: :span) { get_html "/" }
-      expect(doc.at("header > span.page-subtitle")).not_to be_nil
+      expect(doc.at("header .page-header-inline > span.page-subtitle")).not_to be_nil
     end
 
     it "defaults the h1 to the app id" do
