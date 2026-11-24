@@ -283,6 +283,8 @@ RSpec.describe "layouts/personal_app/shell" do
         [ "status-message status-success", "Saved" ], [ "status-message status-error", "Careful" ]
       ])
       expect(doc.at("main").element_children.map(&:name)).to eq(%w[header div div div])
+      # PLAT-06: live regions — a notice is a polite status, an alert assertive.
+      expect(flashes.map { |f| [ f["role"], f["aria-live"] ] }).to eq([ %w[status polite], %w[alert assertive] ])
     end
   end
 

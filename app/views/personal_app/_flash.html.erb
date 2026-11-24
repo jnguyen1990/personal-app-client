@@ -1,5 +1,9 @@
+<%# Flash messages as toasts. Live regions (PLAT-06): an alert is role="alert"
+    (assertive), anything else role="status" (polite); shared-core re-inserts
+    the text just after load so screen readers announce it. -%>
 <% if flash.any? %>
           <% flash.each do |kind, msg| %>
-            <div class="status-message status-<%= kind == 'alert' ? 'error' : 'success' %>"><%= msg %></div>
+            <% error = kind.to_s == "alert" %>
+            <div class="status-message status-<%= error ? 'error' : 'success' %>" role="<%= error ? 'alert' : 'status' %>" aria-live="<%= error ? 'assertive' : 'polite' %>" aria-atomic="true"><%= msg %></div>
           <% end %>
         <% end %>
