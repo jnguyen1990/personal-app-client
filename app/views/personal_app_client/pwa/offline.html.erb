@@ -7,7 +7,7 @@
     <title>offline · <%= app.app_id %></title>
     <%# Served from the service worker's cache, so the stylesheet is the cached copy too. %>
     <link rel="stylesheet" href="<%= app.ds_base %>/design-system.css">
-    <script>try { if ((localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark') { document.documentElement.classList.add('dark'); document.documentElement.setAttribute('data-theme', 'dark'); } } catch (_) {}</script>
+    <script>try { var c = (document.cookie.match(/(?:^|;\s*)ds_theme=(light|dark)/) || [])[1]; if ((c || localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark') { document.documentElement.classList.add('dark'); document.documentElement.setAttribute('data-theme', 'dark'); } } catch (_) {}</script>
 </head>
 <body>
     <main id="main">
