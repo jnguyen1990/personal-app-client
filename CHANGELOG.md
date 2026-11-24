@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1
+
+- **Fix: `bundle exec personal-app-deploy` works.** Bundler's wrapper for a
+  gem executable `load`s it as Ruby, so v0.9.0's bash `exe/personal-app-deploy`
+  failed the first deploy with a SyntaxError (before migrating or restarting —
+  the app kept running the old code). The steps moved to
+  `libexec/personal-app-deploy.sh`; `exe/personal-app-deploy` is a Ruby shim
+  that execs it.
+
 ## 0.9.0
 
 ### Behaviour changes on bump

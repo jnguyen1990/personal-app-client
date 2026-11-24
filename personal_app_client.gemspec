@@ -19,7 +19,7 @@ Gem::Specification.new do |spec|
 
   spec.metadata["source_code_uri"] = spec.homepage
 
-  spec.files = Dir["lib/**/*", "app/**/*", "exe/*", "templates/**/*", "README.md", "CHANGELOG.md", "LICENSE.txt"]
+  spec.files = Dir["lib/**/*", "app/**/*", "exe/*", "libexec/*", "templates/**/*", "README.md", "CHANGELOG.md", "LICENSE.txt"]
   spec.require_paths = ["lib"]
   # personal-app-deploy: the production deploy every app's bin/deploy hands to.
   spec.bindir = "exe"
