@@ -5,13 +5,24 @@ require "uri"
 module PersonalAppClient
   class Client
     DEFAULT_GUARDED_DOMAINS = [/\.joenguyen\.ca\z/].freeze
-    RETRYABLE_NETWORK_ERRORS = [
+    # Failures before the request left this machine: the connection was never
+    # made, so a retry cannot perform anything twice — retried for every method.
+    CONNECT_ERRORS = [
       Errno::ECONNREFUSED,
-      Errno::ECONNRESET,
       Errno::EHOSTUNREACH,
-      EOFError,
       Net::OpenTimeout
     ].freeze
+    # Failures after the request may have reached the server (the connection
+    # dropped mid-exchange). Retried only for idempotent requests: GET, PUT and
+    # DELETE always, POST and PATCH only when the caller passes
+    # `idempotent: true` (an upsert keyed on source_app + external_id, say) —
+    # a create-style call retried here could be performed twice.
+    DROPPED_ERRORS = [
+      Errno::ECONNRESET,
+      EOFError
+    ].freeze
+    RETRYABLE_NETWORK_ERRORS = (CONNECT_ERRORS + DROPPED_ERRORS).freeze
+    IDEMPOTENT_METHODS = %i[get put delete].freeze
 
     attr_reader :base_url
 
@@ -37,16 +48,18 @@ module PersonalAppClient
       request(:get, path, query: query)
     end
 
-    def post(path, body = nil)
-      request(:post, path, body: body)
+    # `idempotent: true` lets a dropped connection be retried (see
+    # DROPPED_ERRORS); only pass it when performing the call twice is harmless.
+    def post(path, body = nil, idempotent: false)
+      request(:post, path, body: body, idempotent: idempotent)
     end
 
     def put(path, body = nil)
       request(:put, path, body: body)
     end
 
-    def patch(path, body = nil)
-      request(:patch, path, body: body)
+    def patch(path, body = nil, idempotent: false)
+      request(:patch, path, body: body, idempotent: idempotent)
     end
 
     def delete(path)
@@ -80,11 +93,11 @@ module PersonalAppClient
       @guarded_domains.any? { |pattern| pattern.match?(host) }
     end
 
-    def request(method, path, query: nil, body: nil)
+    def request(method, path, query: nil, body: nil, idempotent: false)
       @last_status = nil
       uri = build_uri(path, query)
       req = build_request(method, uri, body)
-      response = perform(uri, req)
+      response = perform(uri, req, idempotent: idempotent || IDEMPOTENT_METHODS.include?(method))
       handle(response, uri)
     end
 
@@ -114,7 +127,7 @@ module PersonalAppClient
       req
     end
 
-    def perform(uri, req)
+    def perform(uri, req, idempotent:)
       attempts = 0
       begin
         attempts += 1
@@ -122,9 +135,12 @@ module PersonalAppClient
         http.use_ssl = uri.scheme == "https"
         http.open_timeout = @open_timeout
         http.read_timeout = @read_timeout
+        # Net::HTTP itself silently re-sends an idempotent request once on a
+        # dropped connection; keep that decision here, in one place.
+        http.max_retries = 0
         http.request(req)
       rescue *RETRYABLE_NETWORK_ERRORS => e
-        if attempts < 2
+        if attempts < 2 && (idempotent || CONNECT_ERRORS.any? { |k| e.is_a?(k) })
           log("retry after #{e.class}: #{e.message}")
           retry
         end

@@ -51,23 +51,26 @@ module PersonalAppClient
 
     # Idempotent upsert keyed on (source_app, source_id). Returns base's
     # reminder JSON, or nil when unconfigured or the call failed (logged).
+    #
+    # Returns nil when base can't be reached (logged) — right for a page.
+    # A sync job uses sync_reminder!, which raises instead, so a failed write
+    # is reported as a failed run rather than looking like a success.
     def sync_reminder(payload)
-      payload = checked_payload(payload, REMINDER_KEYS, "reminder")
-      unless payload.key?(:source_id) || payload.key?(:id)
-        raise ArgumentError, "reminder payload needs source_id (or id)"
-      end
-      attempt("sync_reminder") do |http|
-        http.post("/api/reminders/sync", payload.merge(source_app: source_app))
-      end
+      attempt("sync_reminder") { |http| post_reminder(http, payload) }
+    end
+
+    def sync_reminder!(payload)
+      attempt!("sync_reminder") { |http| post_reminder(http, payload) }
     end
 
     # Drop the reminder this app mirrored under `source_id`. A reminder that
-    # is already gone is a success on base's side.
+    # is already gone is a success on base's side. delete_reminder! raises.
     def delete_reminder(source_id)
-      attempt("delete_reminder") do |http|
-        http.post("/api/reminders/sync",
-                  { action_type: "delete", source_app: source_app, source_id: source_id })
-      end
+      attempt("delete_reminder") { |http| post_reminder_delete(http, source_id) }
+    end
+
+    def delete_reminder!(source_id)
+      attempt!("delete_reminder") { |http| post_reminder_delete(http, source_id) }
     end
 
     # Self-report one job run onto base's /jobs page (fire-and-forget).
@@ -77,7 +80,8 @@ module PersonalAppClient
       %i[name status].each do |key|
         raise ArgumentError, "job status payload needs #{key}" if payload[key].blank?
       end
-      attempt("report_job_status") { |http| http.post("/api/job-statuses/sync", payload) }
+      # Upsert by name; a duplicate only adds one run row.
+      attempt("report_job_status") { |http| http.post("/api/job-statuses/sync", payload, idempotent: true) }
     end
 
     # Report one deduplicated error event to base (fire-and-forget, logged at
@@ -91,6 +95,22 @@ module PersonalAppClient
         http.post("/api/error-events/sync", payload.merge(source_app: source_app))
       end
     end
+
+    # Reminders are upserted on (source_app, source_id), so a retried POST is
+    # harmless — marked idempotent.
+    def post_reminder(http, payload)
+      payload = checked_payload(payload, REMINDER_KEYS, "reminder")
+      unless payload.key?(:source_id) || payload.key?(:id)
+        raise ArgumentError, "reminder payload needs source_id (or id)"
+      end
+      http.post("/api/reminders/sync", payload.merge(source_app: source_app), idempotent: true)
+    end
+
+    def post_reminder_delete(http, source_id)
+      http.post("/api/reminders/sync",
+                { action_type: "delete", source_app: source_app, source_id: source_id }, idempotent: true)
+    end
+    private :post_reminder, :post_reminder_delete
 
     # The (source_app, …) half of the reminder key. Defaults to the Rails
     # application's name ("Upkeep::Application" → "upkeep"); set it with

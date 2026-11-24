@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased (0.9.0)
+
+### Behaviour changes on bump
+
+- **A POST or PATCH is no longer re-sent when the connection drops
+  mid-request** (`Errno::ECONNRESET`, `EOFError`): it may already have been
+  performed. GET, PUT and DELETE still retry once; a POST/PATCH retries only
+  with `idempotent: true` (`client.post(path, body, idempotent: true)`).
+  Failures before the request left (`ECONNREFUSED`, `EHOSTUNREACH`,
+  `Net::OpenTimeout`) still retry for every method. Net::HTTP's own silent
+  retry is turned off so this is the only one. The HubClient's reminder sync
+  and job-status calls are marked idempotent (upserts). An app's own
+  create-style POSTs need nothing; its upserts (goal/block sync) should pass
+  `idempotent: true` to keep the retry. (PLAT-38)
+
+### Added
+
+- `AppClient#attempt!(label) { |http| … }` — the raising twin of `attempt`:
+  logs, then re-raises the PersonalAppClient error (ConfigurationError when
+  unconfigured). For sync writes, so a failed write to base is a failed job
+  run instead of a logged nil that looks like success. `HubClient#sync_reminder!`
+  and `#delete_reminder!` are built on it. (PLAT-39)
+
 ## 0.8.0
 
 The gem becomes a Rails engine as well: the platform routes, the default

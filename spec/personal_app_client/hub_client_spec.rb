@@ -91,6 +91,23 @@ RSpec.describe PersonalAppClient::HubClient do
     end
   end
 
+  describe "raising variants (PLAT-39)" do
+    it "sync_reminder! raises when base answers an error, sync_reminder returns nil" do
+      server.on(:post, "/api/reminders/sync") { |_req, res| res.status = 500; res.body = "boom" }
+      io = StringIO.new
+      c = described_class.new(base_url: server.url, source_app: "upkeep", logger: Logger.new(io))
+      expect(c.sync_reminder(source_id: "x", title: "t")).to be_nil
+      expect { c.sync_reminder!(source_id: "x", title: "t") }.to raise_error(PersonalAppClient::ResponseError, /HTTP 500/)
+      expect { c.delete_reminder!("x") }.to raise_error(PersonalAppClient::ResponseError)
+      expect(io.string.scan(/sync_reminder: HTTP 500/).size).to eq(2)
+    end
+
+    it "sync_reminder! raises ConfigurationError when unconfigured" do
+      c = described_class.new(base_url: nil, source_app: "upkeep", env: "production")
+      expect { c.sync_reminder!(source_id: "x", title: "t") }.to raise_error(PersonalAppClient::ConfigurationError)
+    end
+  end
+
   describe "#delete_reminder" do
     it "POSTs a delete keyed on (source_app, source_id)" do
       answer(:post, "/api/reminders/sync", { "success" => true })

@@ -108,6 +108,19 @@ module PersonalAppClient
       default
     end
 
+    # The raising variant (PLAT-39), for sync writes: a failed write to base
+    # must not look like success. Logs, then re-raises the PersonalAppClient
+    # error (ConfigurationError when unconfigured), so the caller — usually a
+    # job — records the failure through its job status report.
+    #
+    #     def mirror_block!(payload) = attempt!("mirror_block") { |http| http.post("/api/blocks/sync", payload, idempotent: true) }
+    def attempt!(label)
+      yield http!
+    rescue PersonalAppClient::Error => e
+      log("#{label}: #{e.message}", :error)
+      raise
+    end
+
     # The Client, or a ConfigurationError when unconfigured — for the
     # raising (`!`) variants behind explicit user actions.
     def http!

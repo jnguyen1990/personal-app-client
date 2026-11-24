@@ -154,6 +154,51 @@ RSpec.describe PersonalAppClient::Client do
     end
   end
 
+  describe "retries (PLAT-38)" do
+    # Net::HTTP#request raises `first` on the first call, then really sends.
+    # Returns how many requests actually reached the server.
+    def flaky(first)
+      calls = 0
+      allow_any_instance_of(Net::HTTP).to receive(:request).and_wrap_original do |orig, *args|
+        calls += 1
+        raise first if calls == 1
+        orig.call(*args)
+      end
+      -> { server.requests.size }
+    end
+
+    before do
+      server.on(:post, "/api/things") { |_req, res| res["Content-Type"] = "application/json"; res.body = "{}" }
+      server.on(:get, "/api/things") { |_req, res| res["Content-Type"] = "application/json"; res.body = "[]" }
+    end
+
+    let(:client) { described_class.new(base_url: server.url) }
+
+    it "retries a GET once when the connection drops" do
+      calls = flaky(Errno::ECONNRESET)
+      expect(client.get("/api/things")).to eq([])
+      expect(calls.call).to eq(1)
+    end
+
+    it "does not retry a POST when the connection drops mid-request" do
+      calls = flaky(Errno::ECONNRESET)
+      expect { client.post("/api/things", { a: 1 }) }.to raise_error(PersonalAppClient::ConnectionError)
+      expect(calls.call).to eq(0)
+    end
+
+    it "retries a POST marked idempotent: true" do
+      calls = flaky(EOFError)
+      expect(client.post("/api/things", { a: 1 }, idempotent: true)).to eq({})
+      expect(calls.call).to eq(1)
+    end
+
+    it "retries any POST when the connection was never made" do
+      calls = flaky(Errno::ECONNREFUSED)
+      expect(client.post("/api/things", { a: 1 })).to eq({})
+      expect(calls.call).to eq(1)
+    end
+  end
+
   describe "PATCH" do
     it "sends a JSON body with the PATCH verb" do
       server.on(:patch, "/api/things/1") do |req, res|
