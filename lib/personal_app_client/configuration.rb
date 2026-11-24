@@ -84,6 +84,8 @@ module PersonalAppClient
     # A Proc receiving the ActionDispatch::ContentSecurityPolicy after the
     # engine's defaults, for an app that needs one more source.
     attr_accessor :content_security_policy_extra
+    # One key=value line per request (RequestLog). nil = production only.
+    attr_writer :request_log
 
     # --- default controllers --------------------------------------------
     # Parent of the default MCP / backup / health / client-error controllers.
@@ -124,6 +126,7 @@ module PersonalAppClient
       @ds_release = nil
       @content_security_policy = :report_only
       @content_security_policy_extra = nil
+      @request_log = nil
       @api_base_controller = "Api::BaseController"
       @mcp_tool_registry = "Mcp::ToolRegistry"
       @backup = {}
@@ -145,6 +148,11 @@ module PersonalAppClient
     def ds_base
       (@ds_base.respond_to?(:call) ? @ds_base.call : @ds_base).presence ||
         ENV["DS_BASE"].presence || DEFAULT_DS_BASE
+    end
+
+    def request_log?
+      return @request_log unless @request_log.nil?
+      defined?(::Rails) && ::Rails.respond_to?(:env) && ::Rails.env.production?
     end
 
     def ds_release

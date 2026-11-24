@@ -23,7 +23,9 @@ module PersonalAppClient
   #   * error reporting — when config.error_reporting.enabled? (production
   #     by default): see ErrorReporting;
   #   * content security policy — Csp.apply! (config.content_security_policy,
-  #     report-only by default), unless the app set its own.
+  #     report-only by default), unless the app set its own;
+  #   * request log — one key=value line per request (config.request_log,
+  #     production by default).
   class Engine < ::Rails::Engine
     engine_name "personal_app_client"
 
@@ -52,6 +54,10 @@ module PersonalAppClient
 
     initializer "personal_app_client.content_security_policy", after: :load_config_initializers do |app|
       PersonalAppClient::Csp.apply!(app)
+    end
+
+    initializer "personal_app_client.request_log", after: :load_config_initializers do
+      PersonalAppClient::RequestLog.install! if PersonalAppClient.config.request_log?
     end
 
     initializer "personal_app_client.error_reporting", after: :load_config_initializers do
