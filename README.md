@@ -782,6 +782,19 @@ app.content_security_policy_extra = ->(p) { p.connect_src :self, PersonalAppClie
   PersonalAppClient::TestSupport::PageSmoke.cuprite_options` in
   `test/application_system_test_case.rb`; the shared CI runs it.
 
+### Field-level errors (round three, PLAT-07)
+
+A form error belongs next to its field, not only in a toast. Server-rendered:
+
+```erb
+<%= f.text_field :title, class: "form-control", **personal_app_field_aria(@recipe, :title) %>
+<%= personal_app_field_error @recipe, :title %>   <%# or render "personal_app/field_error", object:, attribute: %>
+```
+
+gives the field `aria-invalid` + `aria-describedby` and a `.form-error` with the
+attribute's messages. In the browser, shared-core's `dsFieldErrors(form, {title:
+"Title required"})` does the same from a JSON error map (and clears on edit).
+
 ### Interoperability
 
 v0.8.0 changes no inter-app wire format: `X-App-Auth`, the health payload

@@ -209,6 +209,32 @@ module PersonalAppClient
       content_tag(tag_name, content, class: "page-subtitle")
     end
 
+    # --- field-level errors (PLAT-07) ---------------------------------------
+    # The server-rendered twin of shared-core's dsFieldErrors: an invalid field
+    # gets aria-invalid and aria-describedby pointing at a .form-error under it.
+    #
+    #   <%= f.text_field :title, class: "form-control", **personal_app_field_aria(@recipe, :title) %>
+    #   <%= personal_app_field_error @recipe, :title %>
+    #
+    # (or render "personal_app/field_error", object: @recipe, attribute: :title)
+    def personal_app_field_error_id(object, attribute)
+      "#{object.model_name.param_key}_#{attribute}_error"
+    end
+
+    # { "aria-invalid": "true", "aria-describedby": "<id>" } when the attribute
+    # has errors, else {} — splat it into the field's options.
+    def personal_app_field_aria(object, attribute)
+      return {} unless object.respond_to?(:errors) && object.errors.include?(attribute)
+      { "aria-invalid": "true", "aria-describedby": personal_app_field_error_id(object, attribute) }
+    end
+
+    # <p class="form-error" id="…">Title can't be blank</p>, or nil.
+    def personal_app_field_error(object, attribute)
+      return unless object.respond_to?(:errors) && object.errors.include?(attribute)
+      content_tag(:p, object.errors.full_messages_for(attribute).join(" · "),
+                  class: "form-error", id: personal_app_field_error_id(object, attribute))
+    end
+
     # --- settings panes ----------------------------------------------------
 
     def personal_app_mcp_url
