@@ -1,0 +1,15 @@
+name: CI
+
+# Defined once in personal_app_client (.github/workflows/app-ci.yml); this
+# caller is identical in every app except `seed`. Keep the name "CI": the
+# deploy, the Dependabot auto-merge and the mini's heartbeat key on it.
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  ci:
+    uses: jnguyen1990/personal-app-client/.github/workflows/app-ci.yml@main
+    with:
+      seed: false

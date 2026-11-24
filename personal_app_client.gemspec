@@ -19,8 +19,11 @@ Gem::Specification.new do |spec|
 
   spec.metadata["source_code_uri"] = spec.homepage
 
-  spec.files = Dir["lib/**/*", "app/**/*", "README.md", "CHANGELOG.md", "LICENSE.txt"]
+  spec.files = Dir["lib/**/*", "app/**/*", "exe/*", "templates/**/*", "README.md", "CHANGELOG.md", "LICENSE.txt"]
   spec.require_paths = ["lib"]
+  # personal-app-deploy: the production deploy every app's bin/deploy hands to.
+  spec.bindir = "exe"
+  spec.executables = ["personal-app-deploy"]
 
   spec.add_dependency "activesupport", ">= 7.0"
   spec.add_dependency "jwt", ">= 2.7", "< 4"

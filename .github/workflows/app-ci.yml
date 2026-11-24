@@ -1,0 +1,93 @@
+name: App CI (reusable)
+
+# The CI every app runs, defined once (PLAT-42). Each app's .github/workflows/ci.yml
+# is a short caller (templates/workflows/ci.yml in this repo):
+#
+#   jobs:
+#     ci:
+#       uses: jnguyen1990/personal-app-client/.github/workflows/app-ci.yml@main
+#
+# A change here reaches every app's next run — one commit instead of six or
+# seven. The caller keeps the workflow name "CI": deploy.yml, the Dependabot
+# auto-merge and the mini's heartbeat all key on it.
+
+on:
+  workflow_call:
+    inputs:
+      seed:
+        description: Run db:seed after db:test:prepare (fitness's tests read seeded reference data)
+        type: boolean
+        default: false
+
+jobs:
+  scan_ruby:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Scan for common Rails security vulnerabilities using static analysis
+        run: bin/brakeman --no-pager
+      - name: Scan for known security vulnerabilities in gems used
+        run: bin/bundler-audit
+
+  scan_js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Scan for security vulnerabilities in JavaScript dependencies
+        run: bin/importmap audit
+
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      RUBOCOP_CACHE_ROOT: tmp/rubocop
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Prepare RuboCop cache
+        uses: actions/cache@v5
+        env:
+          DEPENDENCIES_HASH: ${{ hashFiles('.ruby-version', '**/.rubocop.yml', '**/.rubocop_todo.yml', 'Gemfile.lock') }}
+        with:
+          path: ${{ env.RUBOCOP_CACHE_ROOT }}
+          key: rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || 'default' }}
+          restore-keys: |
+            rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-
+      - name: Lint code for consistent style
+        run: bin/rubocop -f github
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Prepare test database
+        run: |
+          bin/rails db:test:prepare
+          if [ "${{ inputs.seed }}" = "true" ]; then bin/rails db:seed; fi
+      - name: Run tests
+        run: bin/rails test
+      # The page-load smoke test (PLAT-52): signs in, opens every top-level
+      # page in headless Chrome (preinstalled on the runner) and fails on an
+      # error response or a console error. Skipped until the app has one.
+      - name: Smoke-test every page in a browser
+        run: |
+          if [ -d test/system ]; then bin/rails test:system; else echo "no test/system yet"; fi
+      - name: Keep screenshots of failed system tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-test-screenshots
+          path: tmp/screenshots
+          if-no-files-found: ignore

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Production deploy (run by .github/workflows/deploy.yml over SSH after the git
+# reset). The steps live once, in personal_app_client's exe/personal-app-deploy;
+# this file only does what must happen before that gem is installed — pick the
+# Ruby and bundle — and is identical in every app (copied from the gem's
+# templates/bin-deploy; bin/drift on the mini checks the copies match).
+set -euo pipefail
+
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Run on the Ruby that .ruby-version names. If the container does not have it
+# yet, fall back to the newest one installed and say so — the deploy still
+# goes out, and the next deploy after the Ruby is installed switches over.
+WANTED_RUBY="ruby-$(sed 's/^ruby-//' "${APP_DIR}/.ruby-version" 2>/dev/null | tr -d '[:space:]')"
+if [[ -d "/opt/rubies/${WANTED_RUBY}" ]]; then
+  RUBY_DIR="/opt/rubies/${WANTED_RUBY}"
+else
+  # `|| true`: with none installed, ls fails and pipefail + set -e would exit
+  # here silently, before the error below (the old per-app copies did).
+  RUBY_DIR=$(ls -d /opt/rubies/ruby-* 2>/dev/null | sort -V | tail -1 || true)
+  if [[ -z "$RUBY_DIR" ]]; then
+    echo "ERROR: No Ruby found in /opt/rubies/"
+    exit 1
+  fi
+  echo "WARNING: ${WANTED_RUBY} is not installed in /opt/rubies — using ${RUBY_DIR}"
+fi
+echo "==> Ruby: ${RUBY_DIR}"
+
+export RUBY_DIR
+export PATH="${RUBY_DIR}/bin:${PATH}"
+export GEM_HOME="${RUBY_DIR}/lib/ruby/gems/3.3.0"
+export RAILS_ENV=production
+
+cd "$APP_DIR"
+
+echo "==> Installing dependencies..."
+bundle config set --local deployment true
+bundle config set --local without "development test"
+bundle install --quiet
+
+exec bundle exec personal-app-deploy

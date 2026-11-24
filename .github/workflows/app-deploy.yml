@@ -1,0 +1,74 @@
+name: App deploy (reusable)
+
+# The production deploy every app runs, defined once (PLAT-42). Each app's
+# .github/workflows/deploy.yml is a short caller (templates/workflows/deploy.yml)
+# that keeps the trigger — after CI passes on main, or by hand — and passes the
+# app name and its four deploy secrets. Joins the tailnet, SSHes to the
+# container, resets /opt/<app> to origin/main, runs bin/deploy (which hands to
+# this gem's exe/personal-app-deploy), then polls /up for 60 seconds.
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: The app's name (/opt/<app>, <app>.tail5ece07.ts.net)
+        type: string
+        required: true
+    secrets:
+      TS_OAUTH_CLIENT_ID:
+        required: true
+      TS_OAUTH_SECRET:
+        required: true
+      DEPLOY_SSH_KEY:
+        required: true
+      DEPLOY_USER:
+        required: true
+      DEPLOY_HOST:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the app name
+        env:
+          APP: ${{ inputs.app }}
+        run: '[[ "$APP" =~ ^[a-z][a-z0-9-]*$ ]] || { echo "bad app name: $APP"; exit 1; }'
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy via SSH
+        env:
+          APP: ${{ inputs.app }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no \
+              -i ~/.ssh/deploy_key \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "cd /opt/$APP && git fetch origin main && git reset --hard origin/main && /opt/$APP/bin/deploy"
+
+      # Poll /up over Tailscale until 200 or 60s elapsed. Catches deploys that
+      # succeed at the SSH level but fail to bring Puma back up.
+      - name: Verify deploy via healthcheck
+        env:
+          APP: ${{ inputs.app }}
+        run: |
+          for i in {1..30}; do
+            code=$(curl -sS -o /dev/null --max-time 5 -w "%{http_code}" \
+              "http://$APP.tail5ece07.ts.net:3000/up" || echo "000")
+            if [[ "$code" == "200" ]]; then
+              echo "✓ healthcheck passed (attempt $i)"
+              exit 0
+            fi
+            echo "  attempt $i: $code — retrying"
+            sleep 2
+          done
+          echo "✗ healthcheck failed after 60s"
+          exit 1

@@ -1,0 +1,32 @@
+name: Deploy
+
+# Deploys main only after the CI workflow has passed on it, so a red build
+# never ships. Run it by hand from the Actions tab to redeploy without a push.
+# The steps are defined once in personal_app_client
+# (.github/workflows/app-deploy.yml); only `app` differs between apps.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    uses: jnguyen1990/personal-app-client/.github/workflows/app-deploy.yml@main
+    with:
+      app: <APP>
+    secrets:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# The production deploy, one copy for every app (PLAT-43). Before this the
+# script was copied into each app's bin/deploy and the copies drifted —
+# postings went without the design-system snapshot step.
+#
+# Run by the app's bin/deploy (templates/bin-deploy in this gem), which picks
+# the Ruby, exports RUBY_DIR / GEM_HOME / RAILS_ENV, bundles, and then:
+#     exec bundle exec personal-app-deploy
+# The app directory is the current directory; the app name is its basename
+# (/opt/<app>). Everything below must stay safe to re-run.
+set -euo pipefail
+
+APP_DIR="$(pwd)"
+APP_NAME="$(basename "$APP_DIR")"
+RUBY_DIR="${RUBY_DIR:?run from bin/deploy, which sets RUBY_DIR}"
+export RAILS_ENV="${RAILS_ENV:-production}"
+
+echo "==> Running migrations..."
+bundle exec rails db:migrate
+
+echo "==> Precompiling assets..."
+bundle exec rails assets:precompile
+
+# public/ds/: the shell falls back to this copy when the design-system CDN is
+# down. A failed fetch keeps the previous snapshot and never fails the deploy.
+echo "==> Snapshotting the design system..."
+bundle exec rails personal_app:ds:snapshot || echo "    snapshot skipped"
+
+echo "==> Syncing systemd unit..."
+UNIT_TEMPLATE="${APP_DIR}/deploy/${APP_NAME}.service"
+SECRETS_DROPIN="/etc/systemd/system/${APP_NAME}.service.d/secrets.conf"
+if [[ -f "$UNIT_TEMPLATE" && -f "$SECRETS_DROPIN" ]]; then
+  mkdir -p "${APP_DIR}/tmp"
+  RENDERED="${APP_DIR}/tmp/${APP_NAME}.service"
+  sed "s|{{RUBY_DIR}}|${RUBY_DIR}|g" "$UNIT_TEMPLATE" > "$RENDERED"
+  if cmp -s "$RENDERED" "/etc/systemd/system/${APP_NAME}.service"; then
+    echo "    unit unchanged"
+  else
+    sudo /usr/bin/install -m 644 "$RENDERED" "/etc/systemd/system/${APP_NAME}.service"
+    sudo /usr/bin/systemctl daemon-reload
+    echo "    unit updated + daemon-reloaded"
+  fi
+else
+  echo "    skipped — secrets drop-in not present yet (see context procedures #11)"
+fi
+
+echo "==> Restarting ${APP_NAME}..."
+sudo systemctl restart "${APP_NAME}"
+
+echo "==> Deploy complete!"
+systemctl status "${APP_NAME}" --no-pager | head -5
