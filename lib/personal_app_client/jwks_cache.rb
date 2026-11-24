@@ -37,6 +37,25 @@ module PersonalAppClient
         cached && cached[:set]
       end
 
+      # A key set written to disk (PLAT-60): provisioning saves base's public
+      # JWKS into each container, so an app restarted while base is down can
+      # still verify connector tokens. Re-read when the file changes; nil when
+      # the path is blank, missing or unreadable.
+      def from_file(path)
+        return nil if path.nil? || path.to_s.empty? || !File.file?(path)
+
+        mtime = File.mtime(path)
+        key = "file:#{path}"
+        cached = @mutex.synchronize { @cache[key] }
+        return cached[:set] if cached && cached[:mtime] == mtime
+
+        set = JWT::JWK::Set.new(JSON.parse(File.read(path)))
+        @mutex.synchronize { @cache[key] = { at: monotonic, mtime: mtime, set: set } }
+        set
+      rescue StandardError
+        nil
+      end
+
       # Drop one URL's keys, or everything. Mostly for specs.
       def clear(url = nil)
         @mutex.synchronize { url ? @cache.delete(url) : @cache.clear }

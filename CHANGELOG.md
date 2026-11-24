@@ -28,6 +28,12 @@
   runs again up to 3 times in all (polynomial backoff) instead of failing
   until its next scheduled run. An attempt that will be retried reports
   nothing to /jobs; the last one reports ok or fail. (PLAT-59)
+- `MCP_OAUTH_JWKS_FILE`: when it names a readable JWKS file (provisioning
+  writes base's public keys into each container), connector tokens are
+  verified against it first and the network is asked only for a key id the
+  file lacks (a rotated key). An app restarted while base is down keeps
+  accepting connector calls. Unset or missing file = the network fetch as
+  before. (PLAT-60)
 
 ## 0.8.0
 

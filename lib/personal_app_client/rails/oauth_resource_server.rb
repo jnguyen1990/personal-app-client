@@ -32,6 +32,7 @@ module PersonalAppClient
       extend ActiveSupport::Concern
 
       JWKS_TTL = PersonalAppClient::JwksCache::TTL # seconds; signing keys are cached this long
+      JWKS_FILE_ENV = "MCP_OAUTH_JWKS_FILE"          # base's public JWKS on disk, checked first
 
       class_methods do
         attr_accessor :oauth_rs_issuer_env, :oauth_rs_jwks_env,
@@ -110,11 +111,27 @@ module PersonalAppClient
         auds.include?(resource)
       end
 
-      # The AS signing keys — a JWT::JWK::Set, or nil. Fetching, the 5-minute
-      # cache and stale-key reuse on a network blip live in JwksCache, which
-      # CloudflareAccess shares.
+      # The AS signing keys — a JWT::JWK::Set, a key loader, or nil.
+      #
+      # When MCP_OAUTH_JWKS_FILE names a readable key set (provisioning writes
+      # base's public JWKS into the container), tokens are checked against it
+      # first and the network is asked only for a key id the file lacks — a
+      # rotated key (PLAT-60). Before, every app fetched base's keys over the
+      # network, so an app restarted while base was down rejected every
+      # connector call until base came back. Without the file: the network
+      # fetch, its 5-minute cache and stale-key reuse (JwksCache, shared with
+      # CloudflareAccess).
       def jwks_keys
-        PersonalAppClient::JwksCache.fetch(ENV[self.class.oauth_rs_jwks_env].presence)
+        url = ENV[self.class.oauth_rs_jwks_env].presence
+        file_set = PersonalAppClient::JwksCache.from_file(ENV[JWKS_FILE_ENV].presence)
+        return PersonalAppClient::JwksCache.fetch(url) unless file_set
+
+        lambda do |options|
+          next file_set unless options[:kid_not_found] && url
+
+          fetched = PersonalAppClient::JwksCache.fetch(url)
+          fetched ? JWT::JWK::Set.new(file_set.keys + fetched.keys) : file_set
+        end
       end
 
       # ---- legacy shared-key fallback ------------------------------------

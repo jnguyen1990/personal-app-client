@@ -202,4 +202,54 @@ RSpec.describe PersonalAppClient::Rails::OauthResourceServer do
       PersonalAppClient::JwksCache.clear
     end
   end
+
+  describe "keys from MCP_OAUTH_JWKS_FILE (PLAT-60)" do
+    require "tmpdir"
+
+    let(:dir) { Dir.mktmpdir }
+    let(:path) { File.join(dir, "oauth_jwks.json") }
+
+    def controller_reading_keys(auth_header:)
+      c = FakeOauthController.new
+      c.request = OpenStruct.new(headers: { "Authorization" => auth_header })
+      c
+    end
+
+    before { PersonalAppClient::JwksCache.clear }
+    after do
+      ENV.delete("MCP_OAUTH_JWKS_FILE")
+      FileUtils.rm_rf(dir)
+      PersonalAppClient::JwksCache.clear
+    end
+
+    it "verifies against the file without touching the network (base down)" do
+      File.write(path, JSON.dump(jwks.export))
+      ENV["MCP_OAUTH_JWKS_FILE"] = path
+      expect(PersonalAppClient::JwksCache).not_to receive(:fetch)
+
+      c = controller_reading_keys(auth_header: "Bearer #{build_token}")
+      c.send(:authenticate_mcp!)
+      expect(c.current_mcp_subject).to eq("joe@rotessa.com")
+    end
+
+    it "asks the network for a key id the file lacks (a rotated key)" do
+      old = JWT::JWK.new(OpenSSL::PKey::RSA.generate(2048), kid: "old-key")
+      File.write(path, JSON.dump(JWT::JWK::Set.new(keys: [ old.export ]).export))
+      ENV["MCP_OAUTH_JWKS_FILE"] = path
+      expect(PersonalAppClient::JwksCache).to receive(:fetch).and_return(jwks)
+
+      c = controller_reading_keys(auth_header: "Bearer #{build_token}")
+      c.send(:authenticate_mcp!)
+      expect(c.current_mcp_subject).to eq("joe@rotessa.com")
+    end
+
+    it "falls back to the network when the file is missing" do
+      ENV["MCP_OAUTH_JWKS_FILE"] = File.join(dir, "nope.json")
+      expect(PersonalAppClient::JwksCache).to receive(:fetch).and_return(jwks)
+
+      c = controller_reading_keys(auth_header: "Bearer #{build_token}")
+      c.send(:authenticate_mcp!)
+      expect(c.current_mcp_subject).to eq("joe@rotessa.com")
+    end
+  end
 end
