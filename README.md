@@ -8,7 +8,7 @@ shared layout shell, settings panes, PWA and error reporting.
 
 ```ruby
 # Gemfile
-gem "personal_app_client", git: "https://github.com/jnguyen1990/personal-app-client.git", tag: "v0.9.1"
+gem "personal_app_client", git: "https://github.com/jnguyen1990/personal-app-client.git", tag: "v0.10.0"
 ```
 
 `require "personal_app_client"` (which Bundler does for you) loads the plain
@@ -550,6 +550,10 @@ end
 | `ds_base` | `ENV["DS_BASE"]`, else `https://design-system.joenguyen.ca` | where the design system is loaded from (String or Proc) |
 | `ds_fallback` | `true` | when `public/ds/` exists, every design-system tag falls back to it if the CDN fails |
 | `ds_release` | the release this gem ships (`ds_release.json`); `false` with `ENV["DS_BASE"]` | the design-system release the shell loads — the design system's `v/<sha>/manifest.json` as a Hash (`sha`, `files` → sha384). Each file loads from `<ds_base>/v/<sha>/<file>` with `integrity` + `crossorigin`; `false` = the unversioned always-latest URLs. See "Pinned design system" |
+| `palette` | `true` | ⌘K palette: meta tag, sidebar/More-sheet search control. Apps add actions with `dsCommands.register`. |
+| `search` | `nil` | `->(q, limit:) { [...] }` — this app's records for `GET /api/search` (route group `search:`); nil = no results |
+| `app_stylesheet` | `true` | Link `apps/<app_id>.css` after `design-system.css` (pinned, SRI, snapshot). |
+| `narrow_pages` | settings, `/new`, `/edit` | Pages rendered in the ~720px column; per page: `content_for :content_width, "narrow" \| "wide"`. |
 | `content_security_policy` | `:report_only` | `:enforce`, `:report_only` or `false`. See "Content security policy". An app's own `config/initializers/content_security_policy.rb` policy always wins |
 | `content_security_policy_extra` | `nil` | Proc receiving the policy after the defaults, to add a source |
 | `api_base_controller` | `"Api::BaseController"` | parent of the default MCP / backup / health / client-error controllers (falls back to `PersonalAppClient::ApiController` when the app has none) |

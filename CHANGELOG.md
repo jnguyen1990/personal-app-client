@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.10.0
+
+### Behaviour changes on bump
+- **Design system pinned to c73747cc1042** (`ds_release.json`) — deploy the design system first.
+- **The shell links the app's own stylesheet** `apps/<app_id>.css` right after `design-system.css`, from the same pinned release with its integrity hash and snapshot fallback; `personal_app:ds:snapshot` copies it too (`config.ds_snapshot_files`). `config.app_stylesheet = false` keeps the shared file only. (PLAT-27)
+- **Settings and new/edit pages render narrow** (~720px, design system `.content-narrow`). `config.narrow_pages` — Regexps on `request.path`, exact path Strings or Procs taking the request; default `[%r{\A/settings(/|\z)}, %r{/(new|edit)\z}]`. A page overrides with `content_for :content_width, "narrow" | "wide"`. (PLAT-22)
+- **The inline page header is one grid** (`.page-header-inline`: title + badge, actions, subtitle). Desktop looks the same; on a phone the actions wrap below the title and subtitle. An app overriding `_page_header` or styling `header > .page-subtitle` should check. (PLAT-09)
+- **Flash messages are live regions** (`role="status"`, alerts `role="alert"`). (PLAT-06)
+
+### Added
+- **⌘K command palette** (PLAT-17): `config.palette` (default true) renders `<meta name="ds-palette" content="<search url or empty>">` and a "Search ⌘K" control under the sidebar brand and in the phone More sheet. It lists the sidebar's pages, this app's records and actions; apps register actions with `dsCommands.register({ label, icon, keywords, run | url })` (e.g. in `content_for :shell_body_end`). `false` = no palette.
+- **Command-palette search** (PLAT-18): `GET /api/search?q=&limit=` answers this app's own records from `config.search`, a callable `(query, limit:)` returning hashes with `kind`, `title`, `meta`, a same-origin `url` and an optional `preview` (`heading`, `subheading`, `amount`, `amount_tone`, `fields`, `actions`). Results are normalised, plain text and capped (limit 5 by default, max 20; query 2–100 characters, else 422); a raising search answers no results and is reported. Drawn by `personal_app_routes` (group `search:`; `false` skips it). No cross-app calls.
+- **Field errors** (PLAT-07): `personal_app_field_error` / `personal_app_field_aria` and a `personal_app/_field_error` partial for server-rendered forms (the design system's `dsFieldErrors` is the JS side).
+- The offline page reads the shared `ds_theme` cookie before localStorage. (PLAT-10)
+
+### From the design system (c73747cc1042), no app changes needed
+- Contrast floor: links, five chip hues, three toasts, `--border-control` for field outlines (PLAT-01/02/03); keyboard dropdowns and filter tags (PLAT-04/05); `showStatus`/`dsToast` live regions (PLAT-06).
+- Theme shared across `*.joenguyen.ca` via the `ds_theme` cookie on `.joenguyen.ca` (localhost / tailnet keep localStorage). (PLAT-10)
+- Compact density from the palette (`data-density="compact"`, stored like the theme; mouse/trackpad only). (PLAT-16)
+- Pages cross-fade on navigation; sidebar, header and tab bar hold still; off under reduced motion. (PLAT-15)
+- 44px tap areas on touch for dock icons, button badges, `.btn-sm`, `.btn-icon`. (PLAT-08)
+- Type tokens: `--text-3xs`, `--tracking-*` (PLAT-30); dead rules and tokens removed (PLAT-28/29).
+
 ## 0.9.1
 
 - **Fix: `bundle exec personal-app-deploy` works.** Bundler's wrapper for a
