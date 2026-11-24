@@ -760,6 +760,28 @@ adds a source:
 app.content_security_policy_extra = ->(p) { p.connect_src :self, PersonalAppClient.config.ds_origin, "https://api.example.com" }
 ```
 
+### Deploy, CI and the page smoke test (v0.9.0)
+
+- `bin/deploy` in every app is a copy of `templates/bin-deploy` (Ruby pick +
+  bundle) that ends `exec bundle exec personal-app-deploy` — the gem's
+  `exe/personal-app-deploy` does the rest. Change the deploy here, once.
+- `.github/workflows/ci.yml` / `deploy.yml` in every app are the callers in
+  `templates/workflows/` (only `seed` and `app` differ); the jobs live in this
+  repo's `.github/workflows/app-ci.yml` and `app-deploy.yml`, referenced
+  `@main`, so a workflow change reaches every app's next run.
+- A browser smoke test per app (`test/system/smoke_test.rb`):
+
+  ```ruby
+  class SmokeTest < ApplicationSystemTestCase
+    include PersonalAppClient::TestSupport::PageSmoke
+    smoke_test_pages            # every nav_items path
+  end
+  ```
+
+  with `driven_by :cuprite, screen_size: [ 1440, 900 ], options:
+  PersonalAppClient::TestSupport::PageSmoke.cuprite_options` in
+  `test/application_system_test_case.rb`; the shared CI runs it.
+
 ### Interoperability
 
 v0.8.0 changes no inter-app wire format: `X-App-Auth`, the health payload

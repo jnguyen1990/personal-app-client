@@ -15,6 +15,7 @@ module PersonalAppClient
   # Nothing here depends on Minitest or Rails being loaded; the request
   # helpers only need the `post` / `response` an integration test provides.
   module TestSupport
+    autoload :PageSmoke, "personal_app_client/test_support/page_smoke"
     # ApplicationController uses `allow_browser versions: :modern` — a modern
     # UA keeps requests from being rejected with 406.
     MODERN_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " \

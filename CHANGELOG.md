@@ -50,6 +50,24 @@
   has its own; `config.content_security_policy` `:report_only` (default),
   `:enforce` or `false`; violations to `POST /api/csp-reports` → base's
   /errors as `CSPViolation`.
+- **One deploy script** (PLAT-43): `exe/personal-app-deploy` (migrate,
+  precompile, design-system snapshot, systemd unit sync, restart) is the gem's
+  executable; each app's `bin/deploy` becomes `templates/bin-deploy` — pick the
+  Ruby, bundle, `exec bundle exec personal-app-deploy` — identical in every
+  app. It also fixes a silent exit when no Ruby is installed.
+- **One CI and one deploy workflow** (PLAT-42): `.github/workflows/app-ci.yml`
+  and `app-deploy.yml` (`workflow_call`, this repo is public); each app's
+  `ci.yml` / `deploy.yml` become the short callers in `templates/workflows/`.
+  The CI adds a browser smoke-test step that runs `test:system` when the app
+  has one.
+- **Request log** (PLAT-51): one `request method=… path=… status=…
+  duration_ms=… db_ms=… view_ms=… controller=…` line per request, production
+  by default (`config.request_log`).
+- **Page smoke test** (PLAT-52): `PersonalAppClient::TestSupport::PageSmoke`
+  — `smoke_test_pages` defines one Capybara/Cuprite system test per nav page
+  that fails on an error status, an uncaught exception, an unhandled
+  rejection or `console.error`. Apps add `capybara` + `cuprite` to the test
+  group.
 
 ## 0.8.0
 
