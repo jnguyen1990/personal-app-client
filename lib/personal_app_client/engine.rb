@@ -21,7 +21,9 @@ module PersonalAppClient
   #   * routes — the `personal_app_routes` macro in config/routes.rb;
   #   * helpers — ShellHelper in every ActionController::Base view;
   #   * error reporting — when config.error_reporting.enabled? (production
-  #     by default): see ErrorReporting.
+  #     by default): see ErrorReporting;
+  #   * content security policy — Csp.apply! (config.content_security_policy,
+  #     report-only by default), unless the app set its own.
   class Engine < ::Rails::Engine
     engine_name "personal_app_client"
 
@@ -46,6 +48,10 @@ module PersonalAppClient
 
       rules = PersonalAppClient.config.rate_limit_rules
       PersonalAppClient::RateLimit.install!(app: app, **options.to_h.transform_keys(&:to_sym), &rules)
+    end
+
+    initializer "personal_app_client.content_security_policy", after: :load_config_initializers do |app|
+      PersonalAppClient::Csp.apply!(app)
     end
 
     initializer "personal_app_client.error_reporting", after: :load_config_initializers do

@@ -13,6 +13,7 @@ module PersonalAppClient
   # need a `require "personal_app_client/…"` line per concern. The explicit
   # requires keep working.
   autoload :CloudflareAccess, "personal_app_client/cloudflare_access"
+  autoload :Csp, "personal_app_client/csp"
   autoload :ErrorReporting, "personal_app_client/error_reporting"
   autoload :JwksCache, "personal_app_client/jwks_cache"
   autoload :Nav, "personal_app_client/nav"
@@ -20,6 +21,7 @@ module PersonalAppClient
   autoload :Routes, "personal_app_client/routes"
   autoload :DsSnapshot, "personal_app_client/ds_snapshot"
   autoload :TestSupport, "personal_app_client/test_support"
+  autoload :Vendor, "personal_app_client/vendor"
 
   module Mcp
     autoload :BaseTool, "personal_app_client/mcp/base_tool"

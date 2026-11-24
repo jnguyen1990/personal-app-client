@@ -25,8 +25,48 @@ module PersonalAppClient
       PersonalAppClient::Nav.tabs(items, personal_app_config.tab_count.to_i.clamp(1, 5))
     end
 
+    # A design-system file's URL: <ds_base>/v/<sha>/<file> when the pinned
+    # release (config.ds_release) has it, else the unversioned <ds_base>/<file>.
     def personal_app_ds_url(file)
-      "#{personal_app_config.ds_base}/#{file}"
+      release = personal_app_config.ds_release
+      if release && release.dig("files", file)
+        "#{personal_app_config.ds_base}/v/#{release['sha']}/#{file}"
+      else
+        "#{personal_app_config.ds_base}/#{file}"
+      end
+    end
+
+    # ' integrity="sha384-…" crossorigin="anonymous"' for a pinned file, else
+    # "". The browser refuses a file whose bytes do not match (PLAT-26).
+    def personal_app_ds_sri(file)
+      integrity = personal_app_config.ds_release&.dig("files", file)
+      return "" unless integrity
+      %( integrity="#{ERB::Util.html_escape(integrity)}" crossorigin="anonymous").html_safe
+    end
+
+    # <script>/<link> tags for vendored libraries on the design-system host
+    # (Vendor::LIBS), each pinned with its integrity hash (PLAT-11):
+    #     <%= personal_app_vendor_tags "chart.js" %>
+    def personal_app_vendor_tags(*names)
+      tags = names.map do |name|
+        lib = PersonalAppClient::Vendor.fetch(name)
+        url = "#{personal_app_config.ds_base}/#{lib[:path]}"
+        if lib[:path].end_with?(".css")
+          tag.link(rel: "stylesheet", href: url, integrity: lib[:integrity], crossorigin: "anonymous")
+        else
+          tag.script("", src: url, integrity: lib[:integrity], crossorigin: "anonymous")
+        end
+      end
+      safe_join(tags, "\n    ")
+    end
+
+    # { "leaflet.js" => { "url" => …, "integrity" => … }, … } as JSON, for a
+    # page that loads a library only when it needs it (fitness's route map).
+    def personal_app_vendor_json(*names)
+      names.to_h do |name|
+        lib = PersonalAppClient::Vendor.fetch(name)
+        [ name, { "url" => "#{personal_app_config.ds_base}/#{lib[:path]}", "integrity" => lib[:integrity] } ]
+      end.to_json.html_safe
     end
 
     # The local fallback copy of a design-system file (public/ds/<file>).

@@ -1,3 +1,5 @@
+require "json"
+require "uri"
 require "active_support/core_ext/object/blank"
 require "active_support/core_ext/string/inflections"
 
@@ -63,6 +65,25 @@ module PersonalAppClient
     # when the design-system CDN fails. Only emitted when the snapshot exists.
     attr_accessor :ds_fallback
     attr_writer :ds_base
+    # The design-system release the shell loads (PLAT-26): a Hash
+    # { "sha" => "937dae3e5599", "files" => { "design-system.css" => "sha384-…", … } }
+    # — the design system's v/<sha>/manifest.json. Each file in it is loaded
+    # from <ds_base>/v/<sha>/<file> (immutable, cached a year) with its
+    # integrity attribute, so an altered file is refused. Defaults to the
+    # release this gem version ships (ds_release.json); false loads the
+    # always-latest unversioned URLs. With ENV["DS_BASE"] set (a local design
+    # system in development) the default is false.
+    attr_writer :ds_release
+    # Content-Security-Policy the engine sends (PLAT-25): :enforce,
+    # :report_only or false (the app's own config/initializers policy, if
+    # any, always wins). Scripts and fetches are limited to the app itself
+    # and the design-system host; inline scripts stay allowed (the apps'
+    # pages use them throughout). Violations are POSTed to /api/csp-reports
+    # and land on base's /errors page like any other error.
+    attr_accessor :content_security_policy
+    # A Proc receiving the ActionDispatch::ContentSecurityPolicy after the
+    # engine's defaults, for an app that needs one more source.
+    attr_accessor :content_security_policy_extra
 
     # --- default controllers --------------------------------------------
     # Parent of the default MCP / backup / health / client-error controllers.
@@ -100,6 +121,9 @@ module PersonalAppClient
       @tab_bar = true
       @tab_count = 4
       @ds_fallback = true
+      @ds_release = nil
+      @content_security_policy = :report_only
+      @content_security_policy_extra = nil
       @api_base_controller = "Api::BaseController"
       @mcp_tool_registry = "Mcp::ToolRegistry"
       @backup = {}
@@ -121,6 +145,28 @@ module PersonalAppClient
     def ds_base
       (@ds_base.respond_to?(:call) ? @ds_base.call : @ds_base).presence ||
         ENV["DS_BASE"].presence || DEFAULT_DS_BASE
+    end
+
+    def ds_release
+      return nil if @ds_release == false
+      return @ds_release if @ds_release.is_a?(Hash)
+      return nil if ENV["DS_BASE"].present?
+      self.class.shipped_ds_release
+    end
+
+    # The release pinned by this gem version (lib/personal_app_client/ds_release.json,
+    # a copy of the design system's v/current.json at release time).
+    def self.shipped_ds_release
+      @shipped_ds_release ||= JSON.parse(File.read(File.expand_path("ds_release.json", __dir__))).freeze
+    rescue Errno::ENOENT, JSON::ParserError
+      nil
+    end
+
+    # scheme://host[:port] of ds_base, for the CSP.
+    def ds_origin
+      uri = URI.parse(ds_base)
+      port = uri.port && ![ 80, 443 ].include?(uri.port) ? ":#{uri.port}" : ""
+      "#{uri.scheme}://#{uri.host}#{port}"
     end
 
     def mcp_server_name

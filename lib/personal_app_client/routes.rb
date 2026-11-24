@@ -21,7 +21,8 @@ module PersonalAppClient
   #     POST /api/mcp                                mcp#handle
   #
   # plus the engine's own: GET /manifest.json, GET /service-worker.js,
-  # GET /offline (PWA) and POST /api/client-errors (browser error hook).
+  # GET /offline (PWA), POST /api/client-errors (browser error hook) and
+  # POST /api/csp-reports (Content-Security-Policy violations).
   #
   # Each group goes to the engine's default controller unless the app names
   # its own (a controller path, as `to:` takes it), or `false` to skip it:
@@ -76,7 +77,11 @@ module PersonalAppClient
           post "backup/restore-upload", to: "#{c[:backups]}#restore_upload"
         end
 
-        post "client-errors", to: "#{c[:client_errors]}#create", as: :client_errors if c[:client_errors]
+        if c[:client_errors]
+          post "client-errors", to: "#{c[:client_errors]}#create", as: :client_errors
+          # Content-Security-Policy violation reports (Csp::REPORT_PATH).
+          post "csp-reports", to: "#{c[:client_errors]}#csp", as: :csp_reports
+        end
       end
     end
   end

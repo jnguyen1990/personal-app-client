@@ -147,8 +147,22 @@ RSpec.describe "layouts/personal_app/shell" do
   end
 
   describe "design system tags" do
-    it "loads shared-core, the configured extras and modal-keys in order, apps-launcher deferred" do
+    it "loads the pinned release from v/<sha>/ with integrity attributes (PLAT-26)" do
+      release = PersonalAppClient::Configuration.shipped_ds_release
       with_config(ds_scripts: %w[session-render goal-render]) { get_html "/" }
+      base = "https://design-system.joenguyen.ca/v/#{release['sha']}"
+      core = doc.at("head script[src$='shared-core.js']")
+      expect(core["src"]).to eq("#{base}/shared-core.js")
+      expect(core["integrity"]).to eq(release["files"]["shared-core.js"])
+      expect(core["crossorigin"]).to eq("anonymous")
+      css = doc.css("head link[rel=stylesheet]").first
+      expect(css["href"]).to eq("#{base}/design-system.css")
+      expect(css["integrity"]).to eq(release["files"]["design-system.css"])
+      expect(doc.at("head script[src$='apps-launcher.js']")["integrity"]).to start_with("sha384-")
+    end
+
+    it "loads shared-core, the configured extras and modal-keys in order, apps-launcher deferred" do
+      with_config(ds_scripts: %w[session-render goal-render], ds_release: false) { get_html "/" }
       scripts = doc.css("head script[src]").map { |s| [ s["src"], s.key?("defer") ] }
       expect(scripts).to eq([
         [ "https://design-system.joenguyen.ca/shared-core.js", false ],
@@ -163,10 +177,11 @@ RSpec.describe "layouts/personal_app/shell" do
                                       "as" => "font", "type" => "font/woff2", "crossorigin" => "")
     end
 
-    it "honours DS_BASE" do
+    it "honours DS_BASE (unversioned, no integrity: a local design system in development)" do
       ENV["DS_BASE"] = "http://localhost:8804"
       get_html "/"
       expect(doc.css("head link[rel=stylesheet]").first["href"]).to eq("http://localhost:8804/design-system.css")
+      expect(doc.css("head link[rel=stylesheet]").first["integrity"]).to be_nil
     ensure
       ENV.delete("DS_BASE")
     end
@@ -186,7 +201,7 @@ RSpec.describe "layouts/personal_app/shell" do
       end
 
       it "falls back to the local copy when the CDN fails" do
-        get_html "/"
+        with_config(ds_release: false) { get_html "/" }
         css = doc.css("head link[rel=stylesheet]").first
         expect(css["onerror"]).to eq("this.onerror=null;this.href='/ds/design-system.css'")
         check = doc.css("head script:not([src])").map(&:text).find { |t| t.include?("installNavHotkeys||") }

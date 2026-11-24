@@ -87,6 +87,33 @@ RSpec.describe "error reporting" do
     PersonalAppClient.config.error_reporting.async = false
   end
 
+  describe "POST /api/csp-reports" do
+    let(:violation) do
+      { "csp-report" => {
+        "document-uri" => "https://budgeter.joenguyen.ca/transactions?x=1",
+        "violated-directive" => "script-src-elem", "effective-directive" => "script-src-elem",
+        "blocked-uri" => "https://evil.example/x.js?a=1", "disposition" => "report",
+        "source-file" => "https://budgeter.joenguyen.ca/transactions", "line-number" => 12
+      } }
+    end
+
+    it "reports a violation as a CSPViolation error, one row per directive, origin and page" do
+      post "/api/csp-reports", violation.to_json, { "CONTENT_TYPE" => "application/csp-report" }
+      expect(last_response.status).to eq(204)
+      expect(delivered.first).to include(
+        error_class: "CSPViolation", message: "script-src-elem blocked https://evil.example",
+        path: "/transactions", source: "csp.report", handled: true
+      )
+    end
+
+    it "answers 204 and drops a body that is not a report" do
+      post "/api/csp-reports", "not json", { "CONTENT_TYPE" => "application/csp-report" }
+      post "/api/csp-reports", { "csp-report" => {} }.to_json, { "CONTENT_TYPE" => "application/csp-report" }
+      expect(last_response.status).to eq(204)
+      expect(delivered).to be_empty
+    end
+  end
+
   describe "POST /api/client-errors" do
     let(:report) do
       { kind: "error", message: "Uncaught TypeError: Cannot read properties of null (reading 'value')",

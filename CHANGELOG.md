@@ -4,6 +4,11 @@
 
 ### Behaviour changes on bump
 
+- **The design system loads from the pinned release** (`/v/937dae3e5599/`,
+  with integrity) instead of the always-latest URLs — deploy the design
+  system first. Set `ds_release = false` to keep the old behaviour.
+- **A report-only Content-Security-Policy header** on every response (blocks
+  nothing; violations reach base's /errors).
 - **A POST or PATCH is no longer re-sent when the connection drops
   mid-request** (`Errno::ECONNRESET`, `EOFError`): it may already have been
   performed. GET, PUT and DELETE still retry once; a POST/PATCH retries only
@@ -34,6 +39,17 @@
   file lacks (a rotated key). An app restarted while base is down keeps
   accepting connector calls. Unset or missing file = the network fetch as
   before. (PLAT-60)
+- **Pinned design system** (PLAT-26): `config.ds_release` — the shell loads
+  `<ds_base>/v/<sha>/<file>` with `integrity` + `crossorigin` for every file
+  in the release this gem ships (`ds_release.json`, design system
+  937dae3e5599). `false` or `DS_BASE` = unversioned as before.
+- **Vendored libraries** (PLAT-11): `personal_app_vendor_tags` /
+  `personal_app_vendor_json` for Chart.js 4.6.1 and Leaflet 1.9.4 from the
+  design-system host's `/vendor/`, with integrity.
+- **Content security policy** (PLAT-25): set by the Railtie unless the app
+  has its own; `config.content_security_policy` `:report_only` (default),
+  `:enforce` or `false`; violations to `POST /api/csp-reports` → base's
+  /errors as `CSPViolation`.
 
 ## 0.8.0
 

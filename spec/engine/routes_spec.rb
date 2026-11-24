@@ -55,7 +55,8 @@ RSpec.describe "personal_app_routes" do
       [ "GET", "/manifest.json", "pwa_manifest" ],
       [ "GET", "/service-worker.js", "pwa_service_worker" ],
       [ "GET", "/offline(.:format)", "pwa_offline" ],
-      [ "POST", "/api/client-errors(.:format)", "api_client_errors" ]
+      [ "POST", "/api/client-errors(.:format)", "api_client_errors" ],
+      [ "POST", "/api/csp-reports(.:format)", "api_csp_reports" ]
     ])
   end
 

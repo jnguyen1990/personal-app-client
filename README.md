@@ -549,6 +549,9 @@ end
 | `tab_count` | `4` | how many tabs (1–5) beside "More": the `tab: true` items when any are marked, else the first `tab_count` not marked `tab: false` |
 | `ds_base` | `ENV["DS_BASE"]`, else `https://design-system.joenguyen.ca` | where the design system is loaded from (String or Proc) |
 | `ds_fallback` | `true` | when `public/ds/` exists, every design-system tag falls back to it if the CDN fails |
+| `ds_release` | the release this gem ships (`ds_release.json`); `false` with `ENV["DS_BASE"]` | the design-system release the shell loads — the design system's `v/<sha>/manifest.json` as a Hash (`sha`, `files` → sha384). Each file loads from `<ds_base>/v/<sha>/<file>` with `integrity` + `crossorigin`; `false` = the unversioned always-latest URLs. See "Pinned design system" |
+| `content_security_policy` | `:report_only` | `:enforce`, `:report_only` or `false`. See "Content security policy". An app's own `config/initializers/content_security_policy.rb` policy always wins |
+| `content_security_policy_extra` | `nil` | Proc receiving the policy after the defaults, to add a source |
 | `api_base_controller` | `"Api::BaseController"` | parent of the default MCP / backup / health / client-error controllers (falls back to `PersonalAppClient::ApiController` when the app has none) |
 | `mcp_server_name` | `"<app_id>-mcp"` | MCP `serverInfo.name` |
 | `mcp_tool_registry` | `"Mcp::ToolRegistry"` | registry for the default MCP controller and the connector pane |
@@ -713,6 +716,49 @@ references) into `public/ds/`, swapping the directory in only when every file
 arrived — a failed run keeps the previous snapshot and does not fail the
 deploy. Run it from `bin/deploy`; gitignore `public/ds/`. With the snapshot
 present the shell's tags fall back to it when the CDN fails.
+
+### Pinned design system (v0.9.0)
+
+The design system publishes each release under `/v/<sha>/` with a year of
+immutable caching and a manifest of sha384 hashes (design-system repo
+`scripts/release.mjs`; `v/current.json` is the newest). The gem ships one of
+those manifests as `lib/personal_app_client/ds_release.json`, so the shell
+loads exactly that release with `integrity` attributes — an altered or
+mismatched file is refused (and falls back to `public/ds/` when the snapshot
+exists). Moving every app to a new design-system release = copy the new
+`v/current.json` over `ds_release.json`, tag the gem, bump the apps (`bin/fleet
+gem-bump`). One app can pin differently with `app.ds_release = { "sha" => …,
+"files" => { … } }`, or follow the latest with `false`. With `DS_BASE` set (a
+local design system) the default is `false`. The design-system release must be
+deployed before any app that names its sha.
+
+### Vendored libraries (v0.9.0)
+
+Chart.js and Leaflet are served from the design-system host's `/vendor/`
+(pinned, immutable, sha384 in `PersonalAppClient::Vendor::LIBS`) instead of
+jsDelivr/unpkg:
+
+```erb
+<%= personal_app_vendor_tags "chart.js" %>                     <%# <script … integrity … crossorigin> %>
+<script>window.VENDOR = <%= personal_app_vendor_json "leaflet.js", "leaflet.css" %>;</script>  <%# load on demand %>
+```
+
+### Content security policy (v0.9.0)
+
+The Railtie sets a policy unless the app has its own: scripts, styles and
+fetches from the app itself and the design-system origin only (inline scripts
+and handlers stay allowed — the apps use them throughout), images from
+anywhere https, `object-src 'none'`, `frame-ancestors 'self'`, and
+`report-uri /api/csp-reports`. Violations are reported like browser errors
+(`CSPViolation`, one row per directive + blocked origin + page) and reach
+base's `/errors` page and the watchdog's new-error page. It starts
+`:report_only`; switch an app to `:enforce` (`app.content_security_policy =
+:enforce`) once its pages report nothing. `content_security_policy_extra`
+adds a source:
+
+```ruby
+app.content_security_policy_extra = ->(p) { p.connect_src :self, PersonalAppClient.config.ds_origin, "https://api.example.com" }
+```
 
 ### Interoperability
 

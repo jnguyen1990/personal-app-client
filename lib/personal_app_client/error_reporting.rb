@@ -1,5 +1,6 @@
 require "digest"
 require "time"
+require "uri"
 require "active_support/core_ext/object/blank"
 require "active_support/core_ext/string/filters"
 require_relative "revision"
@@ -112,6 +113,14 @@ module PersonalAppClient
         submit(ErrorReporting.client_payload(attrs))
       rescue StandardError => e
         log("could not report a client error: #{e.class}: #{e.message}")
+        nil
+      end
+
+      # A Content-Security-Policy violation from POST /api/csp-reports.
+      def report_csp(report)
+        submit(ErrorReporting.csp_payload(report))
+      rescue StandardError => e
+        log("could not report a CSP violation: #{e.class}: #{e.message}")
         nil
       end
 
@@ -250,6 +259,37 @@ module PersonalAppClient
           handled: false,
           source: "window.#{attrs['kind'].presence || 'error'}",
           fingerprint: fingerprint("client", klass, location, message)
+        }.compact
+      end
+
+      # One violation report → an error event. Fingerprinted on the directive,
+      # the blocked origin (not its full URL) and the page, so one bad script
+      # on one page is one row however often it fires.
+      def csp_payload(report)
+        r = report.to_h.transform_keys(&:to_s)
+        directive = (r["effective-directive"].presence || r["violated-directive"].to_s.split.first).to_s
+        blocked = r["blocked-uri"].to_s
+        blocked_origin = begin
+          u = URI.parse(blocked)
+          u.host ? "#{u.scheme}://#{u.host}" : blocked
+        rescue URI::InvalidURIError
+          blocked
+        end
+        page = url_path(r["document-uri"])
+        message = "#{directive} blocked #{blocked_origin.presence || '(unknown)'}"
+        script = url_path(r["source-file"])
+        location = script && [ script, r["line-number"].to_i, r["column-number"].to_i ].join(":")
+        {
+          kind: "client",
+          error_class: "CSPViolation",
+          message: message.truncate(MESSAGE_LIMIT),
+          location: location,
+          origin: "browser",
+          path: page,
+          severity: r["disposition"].to_s == "report" ? "warning" : "error",
+          handled: r["disposition"].to_s == "report",
+          source: "csp.#{r['disposition'].presence || 'enforce'}",
+          fingerprint: fingerprint("csp", directive, page, blocked_origin)
         }.compact
       end
 
