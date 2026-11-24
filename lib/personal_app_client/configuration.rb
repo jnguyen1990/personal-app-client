@@ -110,6 +110,9 @@ module PersonalAppClient
     # (empty when config.search is nil: pages and actions only), a search
     # control in the sidebar and the phone "More" sheet. false = no palette.
     attr_accessor :palette
+    # Load the design system's apps/<app_id>.css after design-system.css (the
+    # styles only this app uses, round three PLAT-27). false = shared file only.
+    attr_accessor :app_stylesheet
 
     # --- railtie ---------------------------------------------------------
     # Options for RateLimit.install! (limit:, period:, path_prefix:, …), or
@@ -143,6 +146,7 @@ module PersonalAppClient
       @health_targets = nil
       @search = nil
       @palette = true
+      @app_stylesheet = true
       @rate_limit = {}
       @rate_limit_rules = nil
       @pwa = PwaConfig.new
@@ -165,6 +169,16 @@ module PersonalAppClient
     def request_log?
       return @request_log unless @request_log.nil?
       defined?(::Rails) && ::Rails.respond_to?(:env) && ::Rails.env.production?
+    end
+
+    # "apps/<app_id>.css", or nil when config.app_stylesheet is off.
+    def app_stylesheet_file
+      app_stylesheet ? "apps/#{app_id}.css" : nil
+    end
+
+    # Every file the snapshot copies: DS_FILES plus this app's stylesheet.
+    def ds_snapshot_files
+      DS_FILES + [ app_stylesheet_file ].compact
     end
 
     def ds_release

@@ -5,10 +5,12 @@
     file fails its integrity check). -%>
 <% fallback = personal_app_ds_fallback? -%>
     <link rel="preload" href="<%= personal_app_ds_url("fonts/inter-latin-wght.woff2") %>" as="font" type="font/woff2" crossorigin>
+<% personal_app_ds_stylesheets.each do |css| -%>
 <% if fallback -%>
-    <link rel="stylesheet" href="<%= personal_app_ds_url("design-system.css") %>"<%= personal_app_ds_sri("design-system.css") %> onerror="<%= personal_app_ds_css_onerror %>">
+    <link rel="stylesheet" href="<%= personal_app_ds_url(css) %>"<%= personal_app_ds_sri(css) %> onerror="<%= personal_app_ds_css_onerror(css) %>">
 <% else -%>
-    <link rel="stylesheet" href="<%= personal_app_ds_url("design-system.css") %>"<%= personal_app_ds_sri("design-system.css") %>>
+    <link rel="stylesheet" href="<%= personal_app_ds_url(css) %>"<%= personal_app_ds_sri(css) %>>
+<% end -%>
 <% end -%>
 <% personal_app_config.ds_sync_scripts.each do |name| -%>
     <script src="<%= personal_app_ds_url("#{name}.js") %>"<%= personal_app_ds_sri("#{name}.js") %>></script>

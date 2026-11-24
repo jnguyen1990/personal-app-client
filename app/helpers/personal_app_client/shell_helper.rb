@@ -120,8 +120,15 @@ module PersonalAppClient
     end
 
     # onerror for the stylesheet <link>: swap to the local snapshot.
-    def personal_app_ds_css_onerror
-      "this.onerror=null;this.href='#{personal_app_ds_fallback_url('design-system.css')}'"
+    def personal_app_ds_css_onerror(file = "design-system.css")
+      "this.onerror=null;this.href='#{personal_app_ds_fallback_url(file)}'"
+    end
+
+    # The stylesheets the shell links, in order: the shared design-system.css,
+    # then this app's own apps/<app_id>.css (PLAT-27) unless
+    # config.app_stylesheet is false.
+    def personal_app_ds_stylesheets
+      [ "design-system.css", personal_app_config.app_stylesheet_file ].compact
     end
 
     # onerror for a deferred script: load the local copy instead.

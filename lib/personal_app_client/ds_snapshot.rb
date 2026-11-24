@@ -6,14 +6,14 @@ require_relative "configuration"
 module PersonalAppClient
   # Copies the design system into public/ds/ so the shell has a local
   # fallback when the CDN is down (`bin/rails personal_app:ds:snapshot`, run
-  # from bin/deploy). Fetches Configuration::DS_FILES plus any relative
+  # from bin/deploy). Fetches Configuration::DS_FILES and the app's apps/<app_id>.css, plus any relative
   # url(...) the stylesheet references (self-hosted fonts). Writes to a temp
   # directory and swaps it in only when every file arrived, so a failed run
   # keeps the previous snapshot.
   module DsSnapshot
     module_function
 
-    def run!(dest:, base: PersonalAppClient.config.ds_base, files: Configuration::DS_FILES,
+    def run!(dest:, base: PersonalAppClient.config.ds_base, files: PersonalAppClient.config.ds_snapshot_files,
              fetcher: method(:fetch), logger: nil)
       dest = File.expand_path(dest.to_s)
       staging = "#{dest}.tmp-#{Process.pid}"
