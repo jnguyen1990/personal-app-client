@@ -100,6 +100,11 @@ module PersonalAppClient
     # (it can call probe_client / probe / unconfigured):
     #     app.health_targets = -> { [ probe_client("base", BaseAppClient.new) ] }
     attr_accessor :health_targets
+    # Command-palette search (GET /api/search — PersonalAppClient::Search):
+    # a callable taking (query, limit:) and returning this app's results as
+    # Hashes (kind, title, meta, url, preview). nil = this app has nothing to search.
+    #     app.search = ->(q, limit:) { Recipe.search(q).limit(limit).map { |r| {...} } }
+    attr_accessor :search
 
     # --- railtie ---------------------------------------------------------
     # Options for RateLimit.install! (limit:, period:, path_prefix:, …), or
@@ -131,6 +136,7 @@ module PersonalAppClient
       @mcp_tool_registry = "Mcp::ToolRegistry"
       @backup = {}
       @health_targets = nil
+      @search = nil
       @rate_limit = {}
       @rate_limit_rules = nil
       @pwa = PwaConfig.new

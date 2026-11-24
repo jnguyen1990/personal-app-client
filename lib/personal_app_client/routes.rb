@@ -38,6 +38,7 @@ module PersonalAppClient
       mcp: "personal_app_client/mcp",
       client_errors: "personal_app_client/client_errors",
       pwa: "personal_app_client/pwa",
+      search: "personal_app_client/search",
       up: "rails/health"
     }.freeze
 
@@ -75,6 +76,11 @@ module PersonalAppClient
           post "backup/prune", to: "#{c[:backups]}#prune"
           post "backup/restore", to: "#{c[:backups]}#restore"
           post "backup/restore-upload", to: "#{c[:backups]}#restore_upload"
+        end
+
+        if c[:search]
+          # The command palette's search (PersonalAppClient::Search): this app's results.
+          get "search", to: "#{c[:search]}#index", as: :search
         end
 
         if c[:client_errors]

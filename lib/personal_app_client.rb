@@ -20,6 +20,7 @@ module PersonalAppClient
   autoload :Nav, "personal_app_client/nav"
   autoload :RateLimit, "personal_app_client/rate_limit"
   autoload :RequestLog, "personal_app_client/request_log"
+  autoload :Search, "personal_app_client/search"
   autoload :Routes, "personal_app_client/routes"
   autoload :DsSnapshot, "personal_app_client/ds_snapshot"
   autoload :TestSupport, "personal_app_client/test_support"
