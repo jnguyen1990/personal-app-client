@@ -105,6 +105,11 @@ module PersonalAppClient
     # Hashes (kind, title, meta, url, preview). nil = this app has nothing to search.
     #     app.search = ->(q, limit:) { Recipe.search(q).limit(limit).map { |r| {...} } }
     attr_accessor :search
+    # The ⌘K command palette (design system shared-core dsPalette): true shows
+    # it — the shell renders <meta name="ds-palette" content="<search url>">
+    # (empty when config.search is nil: pages and actions only), a search
+    # control in the sidebar and the phone "More" sheet. false = no palette.
+    attr_accessor :palette
 
     # --- railtie ---------------------------------------------------------
     # Options for RateLimit.install! (limit:, period:, path_prefix:, …), or
@@ -137,6 +142,7 @@ module PersonalAppClient
       @backup = {}
       @health_targets = nil
       @search = nil
+      @palette = true
       @rate_limit = {}
       @rate_limit_rules = nil
       @pwa = PwaConfig.new

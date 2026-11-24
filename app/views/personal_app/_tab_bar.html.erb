@@ -14,6 +14,7 @@
     <div class="sheet-scrim" hidden></div>
     <div class="sheet" id="more-sheet" role="dialog" aria-modal="true" aria-label="More" hidden>
         <div class="sheet-handle" aria-hidden="true"></div>
+        <%= personal_app_palette_trigger("palette-trigger sheet-search") %>
         <% rest = items - tabs %><% if rest.any? %>
         <ul class="nav-menu">
             <% rest.each do |item| %>

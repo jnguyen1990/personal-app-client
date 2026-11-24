@@ -25,6 +25,24 @@ module PersonalAppClient
       PersonalAppClient::Nav.tabs(items, personal_app_config.tab_count.to_i.clamp(1, 5))
     end
 
+    # <meta name="ds-palette" content="…">: turns the ⌘K palette on for this
+    # page; content is the search URL, or "" when the app has no config.search
+    # (the palette still lists pages and actions). Nothing when off.
+    def personal_app_palette_meta_tag
+      return unless personal_app_config.palette
+      url = personal_app_config.search && respond_to?(:api_search_path) ? api_search_path : ""
+      tag.meta(name: "ds-palette", content: url)
+    end
+
+    # The palette's open control (sidebar and the phone "More" sheet).
+    def personal_app_palette_trigger(css = "palette-trigger")
+      return unless personal_app_config.palette
+      content_tag(:button, type: "button", class: css, data: { palette_open: "" }, "aria-keyshortcuts": "Meta+K") do
+        safe_join([ content_tag(:span, "", class: "nav-ico", data: { ico: "search" }, "aria-hidden": "true"),
+                    content_tag(:span, "Search"), content_tag(:kbd, "⌘K", class: "kbd") ])
+      end
+    end
+
     # window.PERSONAL_APPS for the launcher dock (apps-launcher.js), from
     # apps.json — the one list of apps (PLAT-44).
     def personal_app_apps_tag
