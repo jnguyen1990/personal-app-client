@@ -22,6 +22,12 @@
   unconfigured). For sync writes, so a failed write to base is a failed job
   run instead of a logged nil that looks like success. `HubClient#sync_reminder!`
   and `#delete_reminder!` are built on it. (PLAT-39)
+- `PersonalAppClient::Rails::TransientRetries` — include it in
+  `ApplicationJob` (after JobStatusReporting) and a job that fails on a
+  network blip, a sibling's deploy restart or SQLite's "database is locked"
+  runs again up to 3 times in all (polynomial backoff) instead of failing
+  until its next scheduled run. An attempt that will be retried reports
+  nothing to /jobs; the last one reports ok or fail. (PLAT-59)
 
 ## 0.8.0
 

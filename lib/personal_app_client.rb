@@ -34,6 +34,7 @@ module PersonalAppClient
     autoload :InterAppAuth, "personal_app_client/rails/inter_app_auth"
     autoload :InterAppAuthOptional, "personal_app_client/rails/inter_app_auth_optional"
     autoload :JobStatusReporting, "personal_app_client/rails/job_status_reporting"
+    autoload :TransientRetries, "personal_app_client/rails/transient_retries"
     autoload :McpDispatch, "personal_app_client/rails/mcp_dispatch"
     autoload :OauthResourceServer, "personal_app_client/rails/oauth_resource_server"
     autoload :OperatorAuth, "personal_app_client/rails/operator_auth"

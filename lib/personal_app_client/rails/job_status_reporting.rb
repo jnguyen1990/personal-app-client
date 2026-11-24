@@ -84,6 +84,9 @@ module PersonalAppClient
         begin
           result = yield
         rescue => e
+          # TransientRetries will run this job again: the next attempt reports.
+          raise if respond_to?(:transient_retry_pending?) && transient_retry_pending?(e)
+
           deliver_job_status(options, started,
                              (@job_status_fields || {}).merge(
                                status: "fail", detail: e.message.to_s.truncate(DETAIL_LIMIT)
