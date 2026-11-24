@@ -13,11 +13,11 @@
     { "id": "mealplanner", "name": "Mealplanner", "dock_name": "Meals", "accent": "purple", "description": "Meal planning",
       "public_url": "https://mealplanner.joenguyen.ca", "tailnet_url": "http://mealplanner.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3003",
       "mcp_resource": "https://mealplanner.joenguyen.ca/api/mcp", "repo": "jnguyen1990/mealplanner", "ctid": 109, "icon": "🍽" },
-    { "id": "upkeep", "name": "Upkeep", "dock_name": "Upkeep", "accent": "blue", "description": "Home & vehicle maintenance",
+    { "id": "upkeep", "name": "Upkeep", "dock_name": "Upkeep", "accent": "blue", "description": "Maintenance tracking",
       "public_url": "https://upkeep.joenguyen.ca", "tailnet_url": "http://upkeep.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3005",
       "mcp_resource": "https://upkeep.joenguyen.ca/api/mcp", "repo": "jnguyen1990/upkeep", "ctid": 110, "icon": "🔧" },
-    { "id": "postings", "name": "Postings", "dock_name": "Postings", "accent": "crimson", "description": "Job postings",
+    { "id": "postings", "name": "Postings", "dock_name": "Postings", "accent": "crimson", "description": "Job-hunt tracker",
       "public_url": "https://postings.joenguyen.ca", "tailnet_url": "http://postings.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3006",
-      "mcp_resource": "https://postings.joenguyen.ca/api/mcp", "repo": "jnguyen1990/postings", "ctid": 111, "icon": "📌" }
+      "mcp_resource": "https://postings.joenguyen.ca/api/mcp", "repo": "jnguyen1990/postings", "ctid": 111, "icon": "💼" }
   ]
 }
