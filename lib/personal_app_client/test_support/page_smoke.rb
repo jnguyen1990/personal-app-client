@@ -96,7 +96,8 @@ module PersonalAppClient
       # Let the page's own fetches (most pages load their data after
       # DOMContentLoaded) finish and render.
       def settle_page
-        page.driver.wait_for_network_idle(timeout: 5) if page.driver.respond_to?(:wait_for_network_idle)
+        network = page.driver.browser.network if page.driver.browser.respond_to?(:network)
+        network ? network.wait_for_idle(timeout: 5) : page.driver.wait_for_network_idle(timeout: 5)
       rescue StandardError
         nil
       end

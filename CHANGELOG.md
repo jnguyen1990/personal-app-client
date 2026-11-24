@@ -4,9 +4,9 @@
 
 ### Behaviour changes on bump
 
-- **The design system loads from the pinned release** (`/v/937dae3e5599/`,
+- **The design system loads from the pinned release** (`/v/3eed32d9d83b/`,
   with integrity) instead of the always-latest URLs — deploy the design
-  system first. Set `ds_release = false` to keep the old behaviour.
+  system first. (`ds_release.json` = design system 3eed32d9d83b.) Set `ds_release = false` to keep the old behaviour.
 - **A report-only Content-Security-Policy header** on every response (blocks
   nothing; violations reach base's /errors).
 - **A POST or PATCH is no longer re-sent when the connection drops
@@ -42,7 +42,7 @@
 - **Pinned design system** (PLAT-26): `config.ds_release` — the shell loads
   `<ds_base>/v/<sha>/<file>` with `integrity` + `crossorigin` for every file
   in the release this gem ships (`ds_release.json`, design system
-  937dae3e5599). `false` or `DS_BASE` = unversioned as before.
+  3eed32d9d83b). `false` or `DS_BASE` = unversioned as before.
 - **Vendored libraries** (PLAT-11): `personal_app_vendor_tags` /
   `personal_app_vendor_json` for Chart.js 4.6.1 and Leaflet 1.9.4 from the
   design-system host's `/vendor/`, with integrity.
@@ -68,6 +68,11 @@
   that fails on an error status, an uncaught exception, an unhandled
   rejection or `console.error`. Apps add `capybara` + `cuprite` to the test
   group.
+- **One list of apps** (PLAT-44): `lib/personal_app_client/apps.json` (id,
+  name, dock name, accent, public/tailnet/dev URLs, MCP resource, repo, CT
+  id) → `PersonalAppClient.apps` / `.app(id)` / `Apps.mcp_resources`. The
+  shell renders it as `window.PERSONAL_APPS` for the launcher dock (design
+  system 3eed32d9d83b reads it); base and the mini's scripts read it too.
 
 ## 0.8.0
 

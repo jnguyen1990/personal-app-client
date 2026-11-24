@@ -25,6 +25,12 @@ module PersonalAppClient
       PersonalAppClient::Nav.tabs(items, personal_app_config.tab_count.to_i.clamp(1, 5))
     end
 
+    # window.PERSONAL_APPS for the launcher dock (apps-launcher.js), from
+    # apps.json — the one list of apps (PLAT-44).
+    def personal_app_apps_tag
+      content_tag(:script, "window.PERSONAL_APPS = #{PersonalAppClient::Apps.for_launcher.to_json};".html_safe)
+    end
+
     # A design-system file's URL: <ds_base>/v/<sha>/<file> when the pinned
     # release (config.ds_release) has it, else the unversioned <ds_base>/<file>.
     def personal_app_ds_url(file)

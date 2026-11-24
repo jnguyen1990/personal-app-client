@@ -1,0 +1,23 @@
+{
+  "_doc": "The one list of Joe's apps (PLAT-44). Read by personal_app_client (PersonalAppClient.apps: the launcher dock via window.PERSONAL_APPS, base's OAuth audience and /apps registry) and by the mini's scripts (watchdog, heartbeat, backup pull, git mirror, bin/fleet, bin/drift) from this checkout. Adding an app = one entry here, a gem release, and the per-app steps in the README's 'adding a new app' list.",
+  "apps": [
+    { "id": "base", "name": "Base", "dock_name": "Base", "accent": "slate", "description": "Hub: goals, reminders, today",
+      "public_url": "https://base.joenguyen.ca", "tailnet_url": "http://base.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3001",
+      "mcp_resource": "https://base.joenguyen.ca/api/mcp", "repo": "jnguyen1990/base", "ctid": 112, "icon": "🏠" },
+    { "id": "budgeter", "name": "Budgeter", "dock_name": "Budgeter", "accent": "green", "description": "Expense tracking & budget planning",
+      "public_url": "https://budgeter.joenguyen.ca", "tailnet_url": "http://budgeter.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3002",
+      "mcp_resource": "https://budgeter.joenguyen.ca/api/mcp", "repo": "jnguyen1990/budgeter", "ctid": 107, "icon": "💰" },
+    { "id": "fitness", "name": "Fitness", "dock_name": "Fitness", "accent": "orange", "description": "Fitness & health tracking",
+      "public_url": "https://fitness.joenguyen.ca", "tailnet_url": "http://fitness.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3000",
+      "mcp_resource": "https://fitness.joenguyen.ca/api/mcp", "repo": "jnguyen1990/fitness", "ctid": 108, "icon": "🏋" },
+    { "id": "mealplanner", "name": "Mealplanner", "dock_name": "Meals", "accent": "purple", "description": "Meal planning",
+      "public_url": "https://mealplanner.joenguyen.ca", "tailnet_url": "http://mealplanner.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3003",
+      "mcp_resource": "https://mealplanner.joenguyen.ca/api/mcp", "repo": "jnguyen1990/mealplanner", "ctid": 109, "icon": "🍽" },
+    { "id": "upkeep", "name": "Upkeep", "dock_name": "Upkeep", "accent": "blue", "description": "Home & vehicle maintenance",
+      "public_url": "https://upkeep.joenguyen.ca", "tailnet_url": "http://upkeep.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3005",
+      "mcp_resource": "https://upkeep.joenguyen.ca/api/mcp", "repo": "jnguyen1990/upkeep", "ctid": 110, "icon": "🔧" },
+    { "id": "postings", "name": "Postings", "dock_name": "Postings", "accent": "crimson", "description": "Job postings",
+      "public_url": "https://postings.joenguyen.ca", "tailnet_url": "http://postings.tail5ece07.ts.net:3000", "dev_url": "http://localhost:3006",
+      "mcp_resource": "https://postings.joenguyen.ca/api/mcp", "repo": "jnguyen1990/postings", "ctid": 111, "icon": "📌" }
+  ]
+}

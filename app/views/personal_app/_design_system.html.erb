@@ -16,6 +16,7 @@
 <% if fallback -%>
     <%= personal_app_ds_sync_fallback_script %>
 <% end -%>
+    <%= personal_app_apps_tag %>
 <% personal_app_config.ds_deferred_scripts.each do |name| -%>
 <% if fallback -%>
     <script src="<%= personal_app_ds_url("#{name}.js") %>"<%= personal_app_ds_sri("#{name}.js") %> defer onerror="<%= personal_app_ds_deferred_onerror("#{name}.js") %>"></script>

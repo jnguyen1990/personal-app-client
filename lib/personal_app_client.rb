@@ -12,6 +12,7 @@ module PersonalAppClient
   # Everything else loads on first reference (v0.8.0+), so apps no longer
   # need a `require "personal_app_client/…"` line per concern. The explicit
   # requires keep working.
+  autoload :Apps, "personal_app_client/apps"
   autoload :CloudflareAccess, "personal_app_client/cloudflare_access"
   autoload :Csp, "personal_app_client/csp"
   autoload :ErrorReporting, "personal_app_client/error_reporting"
@@ -48,3 +49,9 @@ module PersonalAppClient
 end
 
 require_relative "personal_app_client/engine" if defined?(::Rails::Engine)
+
+module PersonalAppClient
+  # The app list (apps.json) — see PersonalAppClient::Apps.
+  def self.apps = Apps.all
+  def self.app(id) = Apps.find(id)
+end

@@ -177,6 +177,15 @@ RSpec.describe "layouts/personal_app/shell" do
                                       "as" => "font", "type" => "font/woff2", "crossorigin" => "")
     end
 
+    it "gives the launcher the app list from apps.json, before apps-launcher.js" do
+      get_html "/"
+      head = doc.at("head").element_children
+      list = head.index { |el| el.name == "script" && el.text.include?("window.PERSONAL_APPS") }
+      launcher = head.index { |el| el["src"].to_s.end_with?("apps-launcher.js") }
+      expect(list).to be < launcher
+      expect(doc.at("head").text).to include('"dock_name":"Meals"')
+    end
+
     it "honours DS_BASE (unversioned, no integrity: a local design system in development)" do
       ENV["DS_BASE"] = "http://localhost:8804"
       get_html "/"
