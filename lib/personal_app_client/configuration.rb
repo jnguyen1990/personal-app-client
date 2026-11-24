@@ -113,6 +113,12 @@ module PersonalAppClient
     # Load the design system's apps/<app_id>.css after design-system.css (the
     # styles only this app uses, round three PLAT-27). false = shared file only.
     attr_accessor :app_stylesheet
+    # Pages whose content column is capped at ~720px (design system
+    # .content-narrow, PLAT-22): each entry a Regexp matched against
+    # request.path, an exact path String, or a Proc taking the request.
+    # Default: settings and new/edit forms. A page can override with
+    # content_for :content_width, "narrow" | "wide".
+    attr_accessor :narrow_pages
 
     # --- railtie ---------------------------------------------------------
     # Options for RateLimit.install! (limit:, period:, path_prefix:, …), or
@@ -147,6 +153,7 @@ module PersonalAppClient
       @search = nil
       @palette = true
       @app_stylesheet = true
+      @narrow_pages = [ %r{\A/settings(/|\z)}, %r{/(new|edit)\z} ]
       @rate_limit = {}
       @rate_limit_rules = nil
       @pwa = PwaConfig.new

@@ -3,6 +3,8 @@ class PagesController < ApplicationController
 
   def settings; end
 
+  def wide_form; end
+
   def boom
     raise NoMethodError, "undefined method 'frobnicate' for nil (item 42)"
   end

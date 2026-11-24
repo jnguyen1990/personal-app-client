@@ -14,7 +14,8 @@
       :extra_js         last thing in body      (pages)
 
   plus the page slots every app already used: :page_title, :page_crumb,
-  :title_badge, :page_subtitle, :header_actions. Any partial rendered below
+  :title_badge, :page_subtitle, :header_actions, and :content_width
+  ("narrow" / "wide": overrides config.narrow_pages). Any partial rendered below
   can be overridden by an app file at the same path under app/views/.
 %><% app = personal_app_config %><!DOCTYPE html>
 <html lang="en" data-app="<%= app.app_id %>">
@@ -45,7 +46,7 @@
     <main class="main-content" id="main">
         <%= render "personal_app/page_header" %>
         <%= render "personal_app/flash" %>
-        <div class="content">
+        <div class="<%= personal_app_content_class %>">
             <%= yield %>
         </div>
     </main>

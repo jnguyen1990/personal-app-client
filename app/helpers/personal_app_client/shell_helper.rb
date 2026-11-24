@@ -34,6 +34,29 @@ module PersonalAppClient
       tag.meta(name: "ds-palette", content: url)
     end
 
+    # The class of the shell's content column: "content", plus
+    # "content-narrow" on a narrow page (PLAT-22). content_for :content_width
+    # ("narrow" / "wide") wins over config.narrow_pages.
+    def personal_app_content_class
+      personal_app_content_narrow? ? "content content-narrow" : "content"
+    end
+
+    def personal_app_content_narrow?
+      case content_for(:content_width).to_s.strip
+      when "narrow" then return true
+      when "wide" then return false
+      end
+      path = request.path
+      Array(personal_app_config.narrow_pages).any? do |rule|
+        case rule
+        when Regexp then rule.match?(path)
+        when String then rule == path
+        when Proc then rule.call(request)
+        else false
+        end
+      end
+    end
+
     # The palette's open control (sidebar and the phone "More" sheet).
     def personal_app_palette_trigger(css = "palette-trigger")
       return unless personal_app_config.palette
