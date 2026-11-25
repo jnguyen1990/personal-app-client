@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.2
+
+### Behaviour changes on bump
+- **Tailnet requests stay plain http** (`TailnetSSL`): with `config.assume_ssl`, a request to a `*.ts.net` host is no longer marked https, and `force_ssl` skips its https redirect for it (an app's own `ssl_options[:redirect][:exclude]` is kept). Redirects over `http://<app>.tail5ece07.ts.net:3000` now stay on http — before, every one pointed at an https address nothing serves (base's `/jobs` → `/status`, 2026-11-25). The public `https://<app>.joenguyen.ca` door is unchanged: still https, Secure cookies, HSTS.
+
 ## 0.10.1
 
 ### Behaviour changes on bump

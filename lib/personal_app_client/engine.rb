@@ -25,7 +25,9 @@ module PersonalAppClient
   #   * content security policy — Csp.apply! (config.content_security_policy,
   #     report-only by default), unless the app set its own;
   #   * request log — one key=value line per request (config.request_log,
-  #     production by default).
+  #     production by default);
+  #   * tailnet http — with config.assume_ssl, requests to a *.ts.net host stay
+  #     plain http and skip force_ssl's redirect (TailnetSSL).
   class Engine < ::Rails::Engine
     engine_name "personal_app_client"
 
@@ -34,6 +36,11 @@ module PersonalAppClient
     end
 
     # Routes are drawn after every initializer, so the macro is in place first.
+    initializer "personal_app_client.tailnet_ssl", after: :load_config_initializers do |app|
+      require_relative "tailnet_ssl"
+      TailnetSSL.install!(app)
+    end
+
     initializer "personal_app_client.routes" do
       ActionDispatch::Routing::Mapper.include(PersonalAppClient::Routes)
     end
