@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.5
+
+- **Design system pinned to 5c8b1aa84704:** round six styles for budgeter (allocation references, pace notes, touch targets, reports), mealplanner (recipe form, nutrition grid, Today page) and upkeep (quiet row actions, plan casing, This month, garage cards with 12-month strips, year view, item records, library).
+
 ## 0.10.4
 
 - **Design system pinned to bb612d0c4ae3:** planned lifts without a weight read "—" instead of "undefined lbs" (names and notes escaped); planned fitness calendar cards keep their sport stripe.
