@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.3
+
+### Behaviour changes on bump
+- **Design system pinned to 26b091f1877b** — deploy the design system first.
+
+### From the design system (26b091f1877b), no app changes needed
+- **Wider pages:** `--content-max: 1600px` (was 1200); prose held to `--measure` (72ch); `.table-fit` opt-in for short tables; shared `.chart-box` (fixed-height charts). `.content-narrow` unchanged. (Joe, 2026-11-25)
+- Running is blue (red is for errors), swimming indigo.
+- `SessionRender.vitalsChip` is an emoji-free vitals line (sleep, steps, resting HR, HRV; sleep under 6 h amber); same signature.
+- No 175 W FTP guess: without an FTP the plan table shows % of FTP only.
+- Fitness round five styles in `apps/fitness.css`.
+
 ## 0.10.2
 
 ### Behaviour changes on bump
