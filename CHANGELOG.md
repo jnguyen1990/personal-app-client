@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.1
+
+### Behaviour changes on bump
+- **Design system pinned to b71fc01cc85f** (`ds_release.json`) — deploy the design system first.
+
+### From the design system (b71fc01cc85f), no app changes needed
+- Sentence case: the forced `text-transform: lowercase` is gone from `.cal-day-name`, `.cal-slot-type`, `.cal-dow`, `.sess-day` and fitness's `.ws-h`, `.gm-label`, `.day-name` — apps send the text as it should read (BASE-39).
+- Three `.stat-card` tiles stay on one row between 481 and 768px (BASE-05).
+- `apps/base.css`: inbox, status page and agent page styles (AGT-D, AGT-H, AGT-06).
+
 ## 0.10.0
 
 ### Behaviour changes on bump
