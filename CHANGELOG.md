@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.4
+
+- **Design system pinned to bb612d0c4ae3:** planned lifts without a weight read "—" instead of "undefined lbs" (names and notes escaped); planned fitness calendar cards keep their sport stripe.
+
 ## 0.10.3
 
 ### Behaviour changes on bump
