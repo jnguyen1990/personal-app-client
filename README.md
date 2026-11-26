@@ -8,7 +8,7 @@ shared layout shell, settings panes, PWA and error reporting.
 
 ```ruby
 # Gemfile
-gem "personal_app_client", git: "https://github.com/jnguyen1990/personal-app-client.git", tag: "v0.10.5"
+gem "personal_app_client", git: "https://github.com/jnguyen1990/personal-app-client.git", tag: "v0.10.6"
 ```
 
 `require "personal_app_client"` (which Bundler does for you) loads the plain

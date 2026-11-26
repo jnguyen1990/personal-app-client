@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.6
+
+- **Design system pinned to 17a7ba670441:** upkeep garage cards list their own due work (garage variant A).
+
 ## 0.10.5
 
 - **Design system pinned to 5c8b1aa84704:** round six styles for budgeter (allocation references, pace notes, touch targets, reports), mealplanner (recipe form, nutrition grid, Today page) and upkeep (quiet row actions, plan casing, This month, garage cards with 12-month strips, year view, item records, library).

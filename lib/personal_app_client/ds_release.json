@@ -1,8 +1,8 @@
 {
-  "sha": "5c8b1aa84704",
-  "commit": "5c8b1aa847049e03febf49aefe0c12b7e013976f",
-  "date": "2026-11-25T14:23:30-05:00",
-  "base": "/v/5c8b1aa84704/",
+  "sha": "17a7ba670441",
+  "commit": "17a7ba670441ac9c8fcfd6a9ee6280e72209357c",
+  "date": "2026-11-25T21:48:38-05:00",
+  "base": "/v/17a7ba670441/",
   "files": {
     "design-system.css": "sha384-iWHkF3yYhW3XTajlLcBiAFbhzqxRpqz+pEz6BL+M9FH/gmRl2PKp2e2u6OruTnoj",
     "shared-core.js": "sha384-gr36Zwwt3fC92tcine2HhVPzHwtN1R+GJLoVShNDwTDurn7jTDVcKM14uWC2y4eG",
@@ -15,6 +15,6 @@
     "apps/fitness.css": "sha384-eRv/Cp8Xzo4Z9offJQjmXK+cWZNYACSg9SXCmmcr+uyQ3yonv9auEnHJoq6hfNkz",
     "apps/mealplanner.css": "sha384-P/tu8uwhBSu9DTGB0AlcHLG1A3LghZO4WLC1OO7Ti+DAQuCYQcR+yAJH/Uj2y0Yr",
     "apps/postings.css": "sha384-Nrf8k7P2xe7mbQpnAHHCu6YnAyTZ5EPqHmhSnAUMrZGEnKh0dh1COW3veXFBheAy",
-    "apps/upkeep.css": "sha384-gJbNmQp/zhZ5AsFstouVnmRCmRrONaTmcH6/TlVFy5UzrXLQYIxaegxOvrCw3AeE"
+    "apps/upkeep.css": "sha384-/plFGhoqZFNzIK+Cz6PU4U7kL592A3al2k4Z/c0aLCsSV6VEiKa6L4DncqCMLkxy"
   }
 }
